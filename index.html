@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1d5145">
+  <meta name="description" content="Your personal food, calorie and macro tracker. Save your usual foods, see your daily balance and understand your goals.">
+  <title>Daily Balance · Nutrition tracker</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <aside class="sidebar">
+    <a href="#today" class="brand" aria-label="Daily Balance home">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M9 10.5c6.5-3.5 13.7-2.9 17-1-1 6.4-5.5 13-11.2 13-6.3 0-10-6.7-5.8-12Z" fill="currentColor"/><path d="M7 25c2.6-6.1 7.6-10.6 13-13" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+      <span>Daily Balance<small>YOUR PERSONAL FOOD JOURNAL</small></span>
+    </a>
+    <div class="workspace-label">MY SPACE</div>
+    <nav aria-label="Main navigation">
+      <a href="#today" data-nav="today"><span class="nav-icon" data-icon="dashboard"></span> Daily intake</a>
+      <a href="#foods" data-nav="foods"><span class="nav-icon" data-icon="foods"></span> My foods <span id="food-count" class="nav-count"></span></a>
+      <a href="#history" data-nav="history"><span class="nav-icon" data-icon="history"></span> History</a>
+      <a href="#goals" data-nav="goals"><span class="nav-icon" data-icon="goals"></span> Profile & goals</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="sidebar-note"><span class="small-label">ONE DAY AT A TIME</span><p>Know what you ate.<br>Choose what comes next.</p></div>
+      <a class="person" href="#goals"><span class="avatar" aria-hidden="true">DB</span><span><strong id="sidebar-name">You</strong><small>Personal tracker</small></span><span class="person-arrow" aria-hidden="true">↗</span></a>
+    </div>
+  </aside>
+  <div class="page">
+    <header class="topbar"><div class="breadcrumb"><span>My nutrition</span><span class="crumb-divider">/</span><strong id="page-label">Daily intake</strong></div><div class="save-state"><span class="status-dot"></span><span id="save-status">Saved in this browser</span></div></header>
+    <main id="main" tabindex="-1"></main>
+    <footer>Daily Balance <span>Made for your everyday.</span><button class="text-button" data-action="backup">Export backup</button></footer>
+  </div>
+  <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <noscript><div class="noscript">Enable JavaScript to use your food log and calculations.</div></noscript>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
