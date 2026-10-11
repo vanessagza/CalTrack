@@ -4,6 +4,8 @@ import {
   calculateGoals, portionNutrition, allowedUnits, unitLabel, newEntry,
   totals, remaining, progress, createInitialState, validateState, suggestions,
 } from './core.js';
+import { createJournalSync } from './cloud-sync.js';
+import { sameJournal } from './journal-merge.js';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -34,6 +36,8 @@ const categoryIcon = cat => ({ 'Protein':'protein', 'Bread & grains':'bread', 'D
 const tile = f => `<span class="food-tile ${categoryIcon(f.category)}">${icon(categoryIcon(f.category))}</span>`;
 const dateText = (date, opts = {}) => new Intl.DateTimeFormat('en-US', { timeZone:'UTC', month:'short', day:'numeric', ...opts }).format(new Date(`${date}T12:00:00Z`));
 let state, loadError = '', saveFailed = false, needsSetup = false;
+let journalSync;
+let syncView = { phase: 'local', message: '', email: '', signedIn: false };
 try {
   const saved = localStorage.getItem(STORAGE_KEY);
   state = saved ? validateState(JSON.parse(saved)) : createInitialState();
@@ -42,7 +46,8 @@ try {
   loadError = 'Your saved data could not be read. Restore a backup before adding new records if you need to recover it.';
 }
 needsSetup = state.profileReady === false;
-if (needsSetup) location.hash = 'goals';
+const returningFromSignIn = /(?:access_token|refresh_token|error_description)=/.test(location.hash);
+if (needsSetup && !returningFromSignIn) location.hash = 'goals';
 let selectedDate = todayKey();
 let route = location.hash.slice(1) || 'today';
 let foodQuery = '', foodFilter = 'All';
@@ -51,7 +56,8 @@ let undoState = null, toastTimer, lastFocused = null, pendingImport = null;
 
 function save() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (journalSync) journalSync.saveLocal(state);
+    else localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     saveFailed = false;
     updateSaveStatus();
     return true;
@@ -63,8 +69,30 @@ function save() {
   }
 }
 function updateSaveStatus() {
-  $('#save-status').textContent = saveFailed ? 'Not saved · export backup' : 'Saved in this browser';
-  $('.status-dot').classList.toggle('failed', saveFailed);
+  const labels = { starting:'Checking sign-in…', local:'Saved in this browser', syncing:'Syncing…',
+    pending:'Waiting to sync', synced:'Synced to your account', choose:'Ready to connect your journal',
+    conflict:'Review sync changes', offline:'Saved here · offline', error:'Saved here · sync needs attention' };
+  $('#save-status').textContent = saveFailed ? 'Not saved · export backup' : labels[syncView.phase];
+  $('.status-dot').classList.toggle('failed', saveFailed || ['error','conflict','offline'].includes(syncView.phase));
+}
+
+function showSyncAccount() {
+  let content;
+  if (!syncView.signedIn) {
+    content = `<form id="sync-signin-form"><div class="field"><label for="sync-email">Email address</label><input id="sync-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div><p class="subtle-note">We’ll email you a sign-in link. Open it on this device, then sign in with the same email on your other devices. Your journal stays private to your account.</p><div id="sync-signin-error" class="form-error" role="alert"></div><p id="sync-signin-result" role="status" class="subtle-note"></p><div class="dialog-footer"><button class="btn primary" type="submit">Email me a sign-in link</button></div></form>`;
+  } else {
+    const detail = syncView.message || (syncView.phase === 'synced' ? 'Your journal is saved to your account. Your other devices check for updates while the site is open.' : 'Your journal is saved here while we sync your account.');
+    content = `<div id="sync-account-body"><p class="sync-email">${esc(syncView.email)}</p><p id="sync-account-message" class="subtle-note" role="status">${esc(detail)}</p>`;
+    if (syncView.phase === 'choose') {
+      content += `<p class="subtle-note">This account has no journal yet. Upload the information already saved in this browser, or start a fresh journal. Your original browser copy is kept.</p><div class="sync-actions"><button class="btn primary" data-action="sync-upload">Upload this journal</button><button class="btn secondary" data-action="sync-empty">Start fresh</button></div>`;
+    } else if (syncView.phase === 'conflict') {
+      content += `<p class="subtle-note">Export a backup of this device’s changes before choosing. Use the account copy to replace this device’s journal, or keep this device’s copy to replace the account journal.</p><div class="sync-actions"><button class="btn secondary" data-action="backup">Export this copy</button><button class="btn secondary" data-action="sync-use-cloud">Use account copy</button><button class="btn primary" data-action="sync-use-local">Keep this device’s copy</button></div>`;
+    } else {
+      content += `<button class="btn secondary small" data-action="sync-refresh">Sync now</button>`;
+    }
+    content += `<div class="dialog-footer"><button class="text-button" data-action="sync-signout">Sign out on this device</button></div></div>`;
+  }
+  openDialog(dialogHeading('One journal. Every device.', 'Keep your food log, profile and weight history together.') + content);
 }
 function toast(message, error = false, allowUndo = false) {
   const el = $('#toast');
@@ -212,7 +240,7 @@ function renderGoals() {
   const p = state.profile;
   $('#main').innerHTML = heading('Built around you.','Your measurements, your goal, and formulas you can actually see.','','YOUR PERSONAL SETTINGS')
     + `<div class="profile-layout"><form class="card profile-form" id="profile-form"><section class="form-section"><h2>My measurements</h2><div class="form-grid">${field('Name','name',p.name,'text','required maxlength="40"')}${field('Date of birth','birthDate',p.birthDate,'date','required')}${field('Current weight · kg','weight',p.weight,'number','required min="30" max="250" step="0.1"')}${field('Height · cm','height',p.height,'number','required min="100" max="230" step="0.1"')}${field('Goal weight · kg','goalWeight',p.goalWeight,'number','required min="30" max="250" step="0.1"')}${field('Starting weight · kg','startWeight',p.startWeight,'number','required min="30" max="250" step="0.1"')}${selectField('Formula sex setting','sex',[['female','Female · −161'],['male','Male · +5']],p.sex,'Used only for the resting-energy equation.')}${selectField('Typical activity','activity',[[1.2,'Mostly sedentary · 1.20'],[1.375,'Light activity · 1.375'],[1.55,'Moderate activity · 1.55'],[1.725,'Very active · 1.725'],[1.9,'Highly active · 1.90']],p.activity,'Choose your usual whole-day activity, not a single workout.')}</div></section><section class="form-section"><h2>My daily targets</h2><div class="form-grid">${selectField('Calorie target mode','calorieMode',[['manual','Use my selected budget'],['calculated','Use the energy formula']],p.calorieMode)}${field('Selected calorie budget · kcal','calories',p.calories,'number','required min="1200" max="4000" step="25"','Select the calorie budget you want to track.')}${field('Formula deficit · %','deficit',p.deficit,'number','required min="0" max="20" step="1"','Used in formula mode. 0% estimates maintenance.')}${field('Protein · g per kg','proteinFactor',p.proteinFactor,'number','required min="1.4" max="2.2" step="0.1"','Multiplied by your current weight.')}${field('Fat share · % of calories','fatPercent',p.fatPercent,'number','required min="20" max="35" step="1"','Carbs use the calories left after protein and fat.')}</div><span class="formula-badge">Calories are estimates, not an exact prescription.</span></section><div class="form-error" id="profile-error" role="alert"></div><div class="form-actions"><button class="btn primary" type="submit">${icon('check')} Save my goals</button><span class="secondary-note">Updates today and future days.<br>Other recorded days keep their targets.</span></div></form>
-    <div><section class="card calc-panel" id="calc-preview">${renderCalculations(p)}</section><section class="card backup-panel"><h2>Keep a copy of your journal.</h2><p>Your settings, foods and logs are saved on this browser and device. They persist after refresh, but do not sync to other devices. Export a backup to transfer or restore your data.</p><div class="backup-buttons"><button class="btn secondary small" data-action="backup">${icon('download')} Export backup</button><button class="btn secondary small" data-action="import">Restore backup</button></div><input type="file" id="backup-file" accept="application/json,.json" hidden></section></div></div>`;
+    <div><section class="card calc-panel" id="calc-preview">${renderCalculations(p)}</section><section class="card backup-panel"><h2>Keep a copy of your journal.</h2><p>Your settings, foods and logs are saved on this browser and device. Sign in with Sync devices to keep the same journal on your laptop and phone. Export a backup whenever you want an extra copy.</p><div class="backup-buttons"><button class="btn secondary small" data-action="backup">${icon('download')} Export backup</button><button class="btn secondary small" data-action="import">Restore backup</button></div><input type="file" id="backup-file" accept="application/json,.json" hidden></section></div></div>`;
 }
 
 function render() {
@@ -297,6 +325,14 @@ document.addEventListener('click',event=>{
   const {action,id,date}=button.dataset;
   if(needsSetup&&['pick-food','food-portion','add-suggestion','copy-day','log-weight'].includes(action)){location.hash='goals';toast('Save your profile or restore your backup first.');return;}
   try {
+    if(action==='sync-account') return showSyncAccount();
+    if(action==='sync-upload') { journalSync.uploadLocal();closeDialog();return; }
+    if(action==='sync-empty') { journalSync.startEmpty();closeDialog();return; }
+    if(action==='sync-refresh') { journalSync.retry();return; }
+    if(action==='sync-signout') { void journalSync.signOut().then(closeDialog).catch(error=>toast(error.message,true));return; }
+    if(action==='sync-use-cloud'||action==='sync-use-local') {
+      void journalSync.resolveConflict(action==='sync-use-local').then(closeDialog).catch(error=>toast(error.message,true));return;
+    }
     if(action==='pick-food') return showPicker();
     if(action==='close-dialog') return closeDialog();
     if(action==='food-portion') { const f=state.foods.find(f=>f.id===id); if(f)showPortion(f);return; }
@@ -394,10 +430,21 @@ document.addEventListener('change',async event=>{
   }
 });
 
-document.addEventListener('submit',event=>{
+document.addEventListener('submit',async event=>{
   event.preventDefault();
   const form=event.target;
   try {
+    if(form.id==='sync-signin-form') {
+      const button=form.querySelector('button[type=submit]');
+      button.disabled=true;
+      $('#sync-signin-error').classList.remove('visible');
+      try {
+        await journalSync.signIn($('#sync-email').value.trim());
+        $('#sync-signin-result').textContent='Check your inbox and open the sign-in link on this device. You can close this dialog while you wait.';
+      } catch(error) { showError('#sync-signin-error',error); }
+      finally { button.disabled=false; }
+      return;
+    }
     if(form.id==='portion-form') {
       const data=Object.fromEntries(new FormData(form));
       const entry=newEntry(pickerFood,data.amount,data.unit,data.meal,editingEntryId||crypto.randomUUID());
@@ -442,7 +489,7 @@ document.addEventListener('submit',event=>{
 
 window.addEventListener('hashchange',()=>{route=location.hash.slice(1)||'today';render();});
 window.addEventListener('storage',event=>{
-  if(event.key!==STORAGE_KEY||!event.newValue)return;
+  if(event.key!==STORAGE_KEY||!event.newValue||journalSync?.isSignedIn())return;
   try{state=validateState(JSON.parse(event.newValue));needsSetup=state.profileReady===false;render();toast('Journal updated from another tab.');}catch{toast('Another tab saved invalid data. Your current view is kept.',true);}
 });
 $('#dialog').addEventListener('click',event=>{if(event.target===$('#dialog'))closeDialog();});
@@ -453,3 +500,21 @@ document.addEventListener('visibilitychange',()=>{
 for(const el of document.querySelectorAll('[data-icon]'))el.innerHTML=icon(el.dataset.icon);
 render();
 if(!loadError)save();
+
+journalSync = createJournalSync({
+  applyJournal(journal) {
+    if (sameJournal(state,journal)) return;
+    state=validateState(journal);needsSetup=state.profileReady===false;undoState=null;pendingImport=null;
+    loadError='';saveFailed=false;render();
+  },
+  canRefresh: () => !$('#dialog').open && !document.activeElement?.closest('form'),
+  statusChanged(view) {
+    const previous=syncView;
+    syncView=view;updateSaveStatus();
+    if (['choose','conflict'].includes(view.phase) && previous.phase!==view.phase) showSyncAccount();
+    else if ($('#sync-account-body')) {
+      if (!view.signedIn) showSyncAccount();
+      else $('#sync-account-message').textContent=view.message || (view.phase==='synced'?'Your journal is synced.':'Syncing your journal…');
+    }
+  },
+});

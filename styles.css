@@ -60,3 +60,8 @@
 [data-theme="dark"] .status-dot:not(.failed){background:#87aae0}
 [data-theme="dark"] :is(button,a,input,select,textarea):focus-visible{outline-color:#9bbfff}
 [data-theme="dark"] :is(.empty-state svg,.weight-glance svg){color:#a6b9d8}
+
+.sync-button{flex-shrink:0}
+.sync-email{font-size:12px;font-weight:550;overflow-wrap:anywhere}
+.sync-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+@media(max-width:700px){.sync-button{padding:7px}.sync-button span{display:none}.sync-button svg{width:16px;height:16px}.topbar-actions{gap:7px}}

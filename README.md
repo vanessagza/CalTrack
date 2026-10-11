@@ -2,12 +2,15 @@
 
 A static calorie and macro tracker. This package contains the complete website:
 HTML, CSS, JavaScript, and the icon. It does not need an OpenAI account, API key,
-database, paid server, npm installation, or application build step.
+paid server, npm installation, or application build step. Optional private sync
+uses a Supabase account and database; see [Supabase setup](SUPABASE_SETUP.md).
 
 The 27-food starter catalog, portion editor, calorie and macro progress bars,
 energy formulas, daily history, weight journal, and backup/restore are included.
 Use the **Dark mode** switch in the top bar to choose a light or dark theme.
 It follows your device's theme initially and remembers your choice in this browser.
+Use **Sync devices** to sign into your journal on your laptop and phone once
+Supabase is configured. Signed-out use continues to save in this browser.
 
 ## 1. Export your existing journal first
 
@@ -35,6 +38,8 @@ extracted folder. Its files should include:
 | `app.js` | Website interactions and browser storage |
 | `core.js` | Food catalog, formulas and validation |
 | `theme.js` | Light/dark theme switching and saved preference |
+| `cloud-sync.js`, `journal-merge.js`, `sync-config.js` | Private account sync and public connection settings |
+| `vendor/` | Locally bundled Supabase browser SDK and licenses |
 | `favicon.svg` | Browser-tab icon |
 | `.nojekyll` | Publishes the files without Jekyll processing |
 | `README.md` | These instructions |
@@ -85,7 +90,7 @@ Use the exact link shown by GitHub. No custom domain is required.
 
 ## 6. Restore your measurements and journal
 
-1. Open your new GitHub Pages address.
+1. Open your new GitHub Pages address. If using cloud sync, sign in via **Sync devices** first.
 2. On first use, **Profile & goals** opens with a setup notice. The displayed
    measurements are placeholders, not your personalized targets.
 3. In that page's backup panel, click **Restore backup**.
@@ -100,17 +105,29 @@ records. Days follow Asia/Tashkent, matching the original tracker.
 
 ## What is saved, and where?
 
-- The public repository contains the website code and generic food values.
-- Your personal settings and logs are saved in this browser's `localStorage`.
-  The tracker does not send them to GitHub or OpenAI.
-- The new website address has separate browser storage from the original
-  ChatGPT address. Export and restore are necessary for migration.
-- The same website on a different browser or device also has separate data.
-  Export a backup and restore it there if you want to transfer the journal.
-- Clearing the site's browser data can delete its journal. Private browsing
-  generally discards stored data when its private session ends.
-- Anyone with access to your device and browser profile can use its saved
-  journal. This edition has no sign-in or password lock.
+- The public repository contains website code, generic food values and public
+  Supabase connection settings. It contains no personal journal records.
+- Signed out, settings and logs are saved in this browser's `localStorage`.
+- Signed in, your journal is saved to your private Supabase account and cached
+  separately on each device. Sign in with the same email on your laptop and
+  phone. Cloud records are restricted to their owner by database policies.
+- The first time you sign in with an existing local journal and an empty account,
+  choose **Upload this journal**. Other devices can then load it without restoring
+  your backup again. Your original signed-out browser copy is retained.
+- Changes save locally immediately and sync automatically. The site checks for
+  updates every 30 seconds while visible and when you return to it. **Sync now**
+  requests a check immediately. Wait for **Synced to your account** before closing
+  a device if you need those changes available elsewhere right away.
+- Disconnected edits remain on that device until reconnection. Independent record
+  changes can merge; conflicting changes to the same record ask you to choose a
+  copy. Export a backup before replacing either copy. Changes made during an
+  upload are queued for another save.
+- Clearing browser data removes cached journals, pending unsynced changes and
+  sign-in sessions. Synced account data can be loaded after signing in again.
+  Private browsing may discard its local cache when closed.
+- Sign out on shared devices. The signed-in cache is separate from the original
+  local journal; browser storage remains readable by someone with access to that
+  browser profile. A different account does not inherit another account's cache.
 
 Keep periodic JSON backups. Do not commit personal backups to the repository.
 
@@ -127,11 +144,14 @@ ZIP and your JSON backups lets you move the tracker to another static host.
 
 - **404:** check that Pages finished deploying and that `index.html` is in
   `main` at the root, not inside a second folder.
-- **Blank screen:** verify that both JavaScript files were uploaded and that
-  their exact names are `app.js` and `core.js`. Look at the browser console for
+- **Blank screen:** verify that all JavaScript files and the `vendor/` folder were uploaded.
+  Keep their relative paths intact. Look at the browser console for
   the failing request if needed.
 - **Old appearance after an update:** reload with `Ctrl + F5` on Windows.
-- **Original journal missing:** use **Restore backup** on the new address.
+- **Sync setup incomplete:** follow [SUPABASE_SETUP.md](SUPABASE_SETUP.md). The
+  GitHub connection alone does not enable the database or email sign-in.
+- **Original journal missing:** sign in with the same email used on the other
+  device, or use **Restore backup** on the new address.
   Hosting the source files does not migrate another site's browser storage.
 - **Opening `index.html` by double-click does not work:** browser modules need
   an HTTP/HTTPS origin. Open the hosted Pages address. For local development,
