@@ -223,6 +223,15 @@ with sync_playwright() as p:
     laptop.locator('[data-nav="settings"]').click()
     expect(laptop.locator('#color-background-hex')).to_have_value('#041809')
     expect(laptop.locator('.settings-avatar img')).to_be_visible()
+    # An older account retains the browser's existing light/dark choice on upgrade.
+    legacy_journal=copy.deepcopy(fixture);del legacy_journal['preferences']
+    rows[BOB]={'user_id':BOB,'journal':legacy_journal,'revision':1}
+    legacy_ctx=browser.new_context(color_scheme='light');legacy_ctx.route(HOST+'/**',api)
+    legacy_ctx.add_init_script('localStorage.setItem("daily-balance-theme","dark");localStorage.setItem("daily-balance-auth",JSON.stringify('+json.dumps(session(BOB))+'));')
+    legacy_page=legacy_ctx.new_page();legacy_page.on('pageerror',lambda error:errors.append(str(error)))
+    legacy_page.goto(url+'#settings');synced(legacy_page)
+    expect(legacy_page.locator('#appearance-mode')).to_have_value('dark')
+    assert legacy_page.evaluate('document.documentElement.dataset.theme')=='dark'
     assert not errors,errors
     laptop.screenshot(path='/tmp/caltrack-sync-desktop.png')
     phone.screenshot(path='/tmp/caltrack-sync-mobile.png')

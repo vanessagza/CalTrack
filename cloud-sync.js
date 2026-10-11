@@ -1,8 +1,19 @@
 import { createClient } from './vendor/supabase.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './sync-config.js';
-import { STORAGE_KEY, createInitialState, validateState } from './core.js?v=5';
-import { DEFAULT_PREFERENCES } from './preferences.js?v=5';
-import { JournalConflict, mergeJournals, sameJournal } from './journal-merge.js?v=5';
+import { STORAGE_KEY, createInitialState, validateState as validateJournalState } from './core.js?v=6';
+import { DEFAULT_PREFERENCES } from './preferences.js?v=6';
+import { JournalConflict, mergeJournals, sameJournal } from './journal-merge.js?v=6';
+
+function validateState(value) {
+  const journal=validateJournalState(value);
+  if(value.preferences===undefined) {
+    try {
+      const legacyTheme=localStorage.getItem('daily-balance-theme');
+      if(['light','dark'].includes(legacyTheme))journal.preferences.theme=legacyTheme;
+    } catch { /* Use the default when browser storage is unavailable. */ }
+  }
+  return journal;
+}
 
 export function createJournalSync({ applyJournal, statusChanged, canRefresh }) {
   const client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {

@@ -6,11 +6,11 @@ import {
   WORKOUT_GOALS, WORKOUT_EXPERIENCE, WORKOUT_EQUIPMENT, EXERCISE_PRESETS,
   weekDates, validateWorkoutSettings, validateWorkoutEntry, workoutSuggestion,
   suggestWorkoutWeek, copyWorkoutWeek,
-} from './core.js?v=5';
-import { createJournalSync } from './cloud-sync.js?v=5';
-import { sameJournal } from './journal-merge.js?v=5';
-import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=5';
-import { applyAppearance, prepareProfilePhoto } from './appearance.js?v=5';
+} from './core.js?v=6';
+import { createJournalSync } from './cloud-sync.js?v=6';
+import { sameJournal } from './journal-merge.js?v=6';
+import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=6';
+import { applyAppearance, prepareProfilePhoto } from './appearance.js?v=6';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));

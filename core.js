@@ -1,4 +1,4 @@
-import { validatePreferences } from './preferences.js?v=5';
+import { validatePreferences } from './preferences.js?v=6';
 
 export const STORAGE_KEY = 'daily-balance-v1';
 export const TIME_ZONE = 'Asia/Tashkent';
