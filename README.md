@@ -1,12 +1,14 @@
 # Daily Balance — GitHub Pages edition
 
-A static calorie and macro tracker. This package contains the complete website:
+A static nutrition and weekly workout tracker. This package contains the complete website:
 HTML, CSS, JavaScript, and the icon. It does not need an OpenAI account, API key,
 paid server, npm installation, or application build step. Optional private sync
 uses a Supabase account and database; see [Supabase setup](SUPABASE_SETUP.md).
 
 The 27-food starter catalog, portion editor, calorie and macro progress bars,
 energy formulas, daily history, weight journal, and backup/restore are included.
+The **Workouts** section adds a weekly calendar, 22 exercise presets, editable
+sets, reps, weights and notes, and a completion checkbox for every exercise.
 Use the **Dark mode** switch in the top bar to choose a light or dark theme.
 It follows your device's theme initially and remembers your choice in this browser.
 Use **Sync devices** to sign into your journal on your laptop and phone once
@@ -18,7 +20,7 @@ Supabase is configured. Signed-out use continues to save in this browser.
 2. Click **Export backup** at the bottom of the page, or use the export button
    in **Profile & goals**.
 3. Keep the downloaded `.json` file on your own device. It contains your profile,
-   personal food labels, goals, dated food logs, and weight history.
+   personal food labels, goals, dated food logs, weight history, and workout plans.
 4. Do not upload that JSON backup to the public GitHub repository.
 
 The package deliberately has no embedded personal name, actual birth date,
@@ -36,7 +38,7 @@ extracted folder. Its files should include:
 | `index.html` | Website entry page |
 | `styles.css` | Layout and appearance |
 | `app.js` | Website interactions and browser storage |
-| `core.js` | Food catalog, formulas and validation |
+| `core.js` | Food and exercise catalogs, formulas and validation |
 | `theme.js` | Light/dark theme switching and saved preference |
 | `cloud-sync.js`, `journal-merge.js`, `sync-config.js` | Private account sync and public connection settings |
 | `vendor/` | Locally bundled Supabase browser SDK and licenses |
@@ -103,11 +105,54 @@ If you do not have a backup, enter your measurements and goals in the profile
 form and save them. That creates a fresh journal; it does not transfer the old
 records. Days follow Asia/Tashkent, matching the original tracker.
 
+## Plan and track your workouts
+
+1. Save your measurements and calorie target in **Profile & goals**, then open
+   **Workouts** in the navigation.
+2. Choose **Training purpose**: muscle preservation, muscle building, increased
+   strength, or general fitness. Select your experience and available equipment.
+3. Select a day in the Monday–Sunday calendar and click **Add exercise**. Search
+   the preset list or filter by exercise type and equipment.
+4. Review the suggested sets and reps. Enter your own lifting weight and notes
+   if useful, then save. For dumbbells, weight means each dumbbell's weight;
+   bodyweight can be recorded as 0 kg. Planks use seconds instead of reps, and
+   unilateral exercises show reps per side.
+5. Check the exercise's box when you complete it. Use its edit button to adjust
+   sets, reps, weight, notes, or scheduled date as your training progresses.
+   Moving an exercise to another date resets its completion checkbox.
+
+**Suggest this week** fills empty upcoming session days with a starting routine:
+two full-body sessions for beginners (Monday and Thursday), or three for regular
+trainees (Monday, Wednesday and Friday). It leaves existing sessions in place.
+Rest days remain empty and can also be used for exercises you add yourself.
+
+**Copy plan to next week** carries forward your edited targets and notes, gives
+each copied exercise a fresh unchecked box, and fills only empty upcoming days.
+Use the week arrows or date field to view previous and future weeks. Deleting an
+exercise, suggesting a week, and copying a week offer an **Undo** button.
+
+Suggestions are adjustable starting points. Training purpose, experience and
+exercise type guide sets and reps. The existing Mifflin–St Jeor estimate uses
+weight, height, age, formula sex and activity to estimate maintenance calories.
+When the saved calorie target is more than 10% below estimated maintenance, the
+planner reduces the suggested sets by one, with a minimum of two. It uses each
+day's saved calorie target when available, otherwise the profile target. Partial
+food logs are not treated as complete calorie intake. Measurements alone cannot
+predict strength or determine a lifting weight; the planner leaves weight for
+you to choose. Preference and profile updates do not rewrite saved workouts.
+
+Workout settings, dates, targets and completion are included in JSON backups.
+Older Daily Balance backups still restore normally and start with an empty
+workout calendar.
+When signed in, workout plans and checkboxes sync with the rest of your journal.
+Independent exercise changes merge; conflicting edits to the same exercise ask
+you to choose which journal to keep.
+
 ## What is saved, and where?
 
 - The public repository contains website code, generic food values and public
   Supabase connection settings. It contains no personal journal records.
-- Signed out, settings and logs are saved in this browser's `localStorage`.
+- Signed out, settings, food logs and workout plans are saved in this browser's `localStorage`.
 - Signed in, your journal is saved to your private Supabase account and cached
   separately on each device. Sign in with the same email on your laptop and
   phone. Cloud records are restricted to their owner by database policies.
@@ -158,6 +203,19 @@ ZIP and your JSON backups lets you move the tracker to another static host.
   you can run `python -m http.server 8000` in this folder and open
   `http://localhost:8000/` instead.
 
+## Development checks
+
+No build step or dependency installation is required to run the app. With Node.js
+22 or newer, run the workout data checks with:
+
+```sh
+node --test tests/workouts.test.mjs
+```
+
+These cover backup migration and round trips, calendar boundaries, workout
+suggestions, equipment preferences, validation, and copying without overwriting
+existing sessions.
+
 ## References
 
 - Creating a Pages site:
@@ -170,5 +228,6 @@ ZIP and your JSON backups lets you move the tracker to another static host.
   https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage
 
 The calculation and storage logic was checked, including compatibility with
-backups from the original tracker. Live browser layout verification and an
-actual deployment to your GitHub account were not performed for this package.
+backups from the original tracker. The workout flow was also checked in Chromium,
+including desktop and mobile layouts, dark mode, completion, editing, reload,
+and backup/restore.

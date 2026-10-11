@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#1d5145">
-  <meta name="description" content="Your personal food, calorie and macro tracker. Save your usual foods, see your daily balance and understand your goals.">
-  <title>Daily Balance · Nutrition tracker</title>
+  <meta name="description" content="Your personal nutrition and workout tracker. Log your food, plan weekly workouts and track your progress.">
+  <title>Daily Balance · Nutrition & workouts</title>
   <script src="./theme.js?v=2"></script>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=3">
+  <link rel="stylesheet" href="./styles.css?v=4">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -21,6 +21,7 @@
     <nav aria-label="Main navigation">
       <a href="#today" data-nav="today"><span class="nav-icon" data-icon="dashboard"></span> Daily intake</a>
       <a href="#foods" data-nav="foods"><span class="nav-icon" data-icon="foods"></span> My foods <span id="food-count" class="nav-count"></span></a>
+      <a href="#workouts" data-nav="workouts"><span class="nav-icon" data-icon="workout"></span> Workouts</a>
       <a href="#history" data-nav="history"><span class="nav-icon" data-icon="history"></span> History</a>
       <a href="#goals" data-nav="goals"><span class="nav-icon" data-icon="goals"></span> Profile & goals</a>
     </nav>
@@ -37,6 +38,6 @@
   <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <noscript><div class="noscript">Enable JavaScript to use your food log and calculations.</div></noscript>
-  <script type="module" src="./app.js?v=3"></script>
+  <script type="module" src="./app.js?v=4"></script>
 </body>
 </html>

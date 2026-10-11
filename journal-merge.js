@@ -1,4 +1,4 @@
-import { validateState } from './core.js';
+import { validateState, validateWorkouts } from './core.js?v=4';
 
 const canonical = value => JSON.stringify(value, function (key, item) {
   return item && typeof item === 'object' && !Array.isArray(item)
@@ -41,6 +41,14 @@ export function mergeJournals(base, local, remote) {
     const value = day(base.days[date], local.days[date], remote.days[date]);
     if (value) days[date] = value;
   }
+  const workouts = [base, local, remote].map(journal => validateWorkouts(journal.workouts));
+  const workoutDays = {};
+  const workoutEntries = workouts.map(workout => Object.entries(workout.days)
+    .flatMap(([date, entries]) => entries.map(entry => ({ ...entry, date }))));
+  // Include the date in the record so two devices moving the same exercise conflict.
+  for (const { date, ...entry } of keyed(...workoutEntries, 'id')) {
+    (workoutDays[date] ||= []).push(entry);
+  }
   return validateState({
     version: 1,
     profileReady: choice(base.profileReady, local.profileReady, remote.profileReady),
@@ -48,6 +56,7 @@ export function mergeJournals(base, local, remote) {
     foods: keyed(base.foods, local.foods, remote.foods, 'id', fields),
     weights: keyed(base.weights, local.weights, remote.weights, 'date'),
     days,
+    workouts: { settings:fields(...workouts.map(workout => workout.settings)), days:workoutDays },
     createdAt: remote.createdAt,
   });
 }

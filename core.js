@@ -3,6 +3,37 @@ export const TIME_ZONE = 'Asia/Tashkent';
 export const NUTRIENTS = ['kcal', 'protein', 'carbs', 'fat'];
 export const CATEGORIES = ['Protein', 'Bread & grains', 'Dairy', 'Snacks', 'Fruit', 'Extras'];
 export const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks', 'Other'];
+export const WORKOUT_GOALS = [
+  ['preserve', 'Muscle preservation'], ['build', 'Muscle building'],
+  ['strength', 'Increase strength'], ['fitness', 'General fitness'],
+];
+export const WORKOUT_EXPERIENCE = [['beginner', 'Starting out'], ['regular', 'Training regularly']];
+export const WORKOUT_EQUIPMENT = [['bodyweight', 'Bodyweight only'], ['dumbbells', 'Dumbbells & bodyweight'], ['gym', 'Full gym']];
+export const EXERCISE_PRESETS = [
+  { id:'squat', name:'Bodyweight squat', group:'Lower body', equipment:'bodyweight', compound:true, cue:'Sit back and down with control; keep your feet planted.' },
+  { id:'reverse-lunge', name:'Reverse lunge', group:'Lower body', equipment:'bodyweight', compound:true, unilateral:true, cue:'Step back with control. Reps are per leg.' },
+  { id:'glute-bridge', name:'Glute bridge', group:'Lower body', equipment:'bodyweight', cue:'Lift your hips without arching your lower back.' },
+  { id:'calf-raise', name:'Standing calf raise', group:'Lower body', equipment:'bodyweight', cue:'Rise slowly onto your toes and lower with control.' },
+  { id:'incline-push-up', name:'Incline push-up', group:'Upper push', equipment:'bodyweight', compound:true, cue:'Use a stable raised surface; keep your body in a straight line.' },
+  { id:'push-up', name:'Push-up', group:'Upper push', equipment:'bodyweight', compound:true, cue:'Use a variation that lets you control every rep.' },
+  { id:'prone-w-raise', name:'Prone W raise', group:'Upper pull', equipment:'bodyweight', cue:'Lie face down and gently lift your arms in a W shape.' },
+  { id:'dead-bug', name:'Dead bug', group:'Core', equipment:'bodyweight', unilateral:true, cue:'Keep your lower back steady. Reps are per side.' },
+  { id:'bird-dog', name:'Bird dog', group:'Core', equipment:'bodyweight', unilateral:true, cue:'Reach opposite arm and leg without rotating. Reps are per side.' },
+  { id:'plank', name:'Plank', group:'Core', equipment:'bodyweight', unit:'seconds', cue:'Keep a straight line and breathe throughout the hold.' },
+  { id:'goblet-squat', name:'Goblet squat', group:'Lower body', equipment:'dumbbells', compound:true, cue:'Hold one dumbbell at your chest and squat with control.' },
+  { id:'dumbbell-rdl', name:'Dumbbell Romanian deadlift', group:'Lower body', equipment:'dumbbells', compound:true, cue:'Hinge at your hips; keep the weights close to your legs.' },
+  { id:'dumbbell-press', name:'Dumbbell floor press', group:'Upper push', equipment:'dumbbells', compound:true, cue:'Lower until your upper arms gently touch the floor.' },
+  { id:'dumbbell-row', name:'One-arm dumbbell row', group:'Upper pull', equipment:'dumbbells', compound:true, unilateral:true, cue:'Support your torso and pull toward your hip. Reps are per arm.' },
+  { id:'shoulder-press', name:'Dumbbell shoulder press', group:'Upper push', equipment:'dumbbells', compound:true, cue:'Press overhead without leaning back.' },
+  { id:'lateral-raise', name:'Dumbbell lateral raise', group:'Upper push', equipment:'dumbbells', cue:'Use a light weight and lift without swinging.' },
+  { id:'biceps-curl', name:'Dumbbell biceps curl', group:'Upper pull', equipment:'dumbbells', cue:'Keep your upper arms still and lower slowly.' },
+  { id:'leg-press', name:'Leg press', group:'Lower body', equipment:'gym', compound:true, cue:'Use a comfortable range and avoid locking your knees.' },
+  { id:'lat-pulldown', name:'Lat pulldown', group:'Upper pull', equipment:'gym', compound:true, cue:'Pull toward your upper chest without swinging your torso.' },
+  { id:'cable-row', name:'Seated cable row', group:'Upper pull', equipment:'gym', compound:true, cue:'Pull with control while keeping your torso steady.' },
+  { id:'chest-press', name:'Machine chest press', group:'Upper push', equipment:'gym', compound:true, cue:'Adjust the seat so the handles sit around chest height.' },
+  { id:'leg-curl', name:'Leg curl', group:'Lower body', equipment:'gym', cue:'Bend your knees with control and lower slowly.' },
+];
+export const DEFAULT_WORKOUT_SETTINGS = { goal:'preserve', experience:'beginner', equipment:'bodyweight' };
 export const DEFAULT_PROFILE = {
   name: 'You', birthDate: '1996-01-01', sex: 'female', height: 170,
   weight: 70, startWeight: 70, goalWeight: 65, activity: 1.2,
@@ -221,10 +252,109 @@ export function progress(consumed, target) {
   return target > 0 ? Math.max(0, Math.min(100, consumed / target * 100)) : 0;
 }
 
+export function weekDates(date) {
+  if (!isDateKey(date)) throw new Error('Choose a valid workout date.');
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const monday = shiftDate(date, -((weekday + 6) % 7));
+  return Array.from({ length:7 }, (_, i) => shiftDate(monday, i));
+}
+
+export function validateWorkoutSettings(value = DEFAULT_WORKOUT_SETTINGS) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Workout settings are invalid.');
+  const settings = {};
+  for (const [key, options] of [['goal', WORKOUT_GOALS], ['experience', WORKOUT_EXPERIENCE], ['equipment', WORKOUT_EQUIPMENT]]) {
+    if (!options.some(([id]) => id === value[key])) throw new Error(`Choose a valid workout ${key}.`);
+    settings[key] = value[key];
+  }
+  return settings;
+}
+
+export function validateWorkoutEntry(value) {
+  if (!value || typeof value !== 'object') throw new Error('Workout exercise is missing.');
+  const preset = EXERCISE_PRESETS.find(e => e.id === value.exerciseId);
+  if (!preset) throw new Error('Choose an exercise from the preset list.');
+  if (typeof value.id !== 'string' || !value.id.trim() || value.id.length > 100) throw new Error('Workout exercise ID is invalid.');
+  const sets = numberIn(value.sets, 1, 10, 'Sets');
+  const reps = numberIn(value.reps, 1, preset.unit === 'seconds' ? 300 : 100, preset.unit === 'seconds' ? 'Hold duration' : 'Reps');
+  if (!Number.isInteger(sets) || !Number.isInteger(reps)) throw new Error('Sets and reps or seconds must be whole numbers.');
+  const load = value.load === '' || value.load == null ? null : numberIn(value.load, 0, 500, 'Exercise weight');
+  if (value.completed !== undefined && typeof value.completed !== 'boolean') throw new Error('Exercise completion is invalid.');
+  return { id:value.id, exerciseId:preset.id, sets, reps, load,
+    note:String(value.note || '').slice(0, 400), completed:value.completed === true };
+}
+
+export function validateWorkouts(value) {
+  // Version 1 journals from before the planner have no workout records.
+  if (value === undefined) return { settings:{ ...DEFAULT_WORKOUT_SETTINGS }, days:{} };
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Workout history is invalid.');
+  const settings = validateWorkoutSettings(value.settings);
+  if (!value.days || typeof value.days !== 'object' || Array.isArray(value.days) || Object.keys(value.days).length > 10000) throw new Error('Workout history is invalid.');
+  const days = {};
+  const ids = new Set();
+  for (const [date, entries] of Object.entries(value.days)) {
+    if (!isDateKey(date) || !Array.isArray(entries) || entries.length > 50) throw new Error('Workout day is invalid.');
+    days[date] = entries.map(value => {
+      const entry = validateWorkoutEntry(value);
+      if (ids.has(entry.id)) throw new Error('Workout exercises must have distinct IDs.');
+      ids.add(entry.id);
+      return entry;
+    });
+  }
+  return { settings, days };
+}
+
+export function workoutSuggestion(profile, settings, exerciseId, date = todayKey(), calories = null) {
+  const preferences = validateWorkoutSettings(settings);
+  const exercise = EXERCISE_PRESETS.find(e => e.id === exerciseId);
+  if (!exercise) throw new Error('Choose an exercise from the preset list.');
+  const energy = calculateGoals(profile, date, calories);
+  const ratio = energy.kcal / energy.tdee;
+  // These are conservative planning heuristics, not a strength prediction.
+  let sets = { preserve:3, build:4, strength:3, fitness:2 }[preferences.goal];
+  if (preferences.experience === 'beginner') sets = Math.min(sets, 3);
+  const reducedVolume = ratio < 0.9 && sets > 2;
+  if (reducedVolume) sets = Math.max(2, sets - 1);
+  const reps = exercise.unit === 'seconds' ? (preferences.experience === 'beginner' ? 20 : 30)
+    : preferences.goal === 'strength' && exercise.compound ? (preferences.experience === 'beginner' ? 8 : 5)
+    : exercise.group === 'Core' ? 8 : preferences.goal === 'fitness' ? 12 : exercise.compound ? 10 : 12;
+  return { sets, reps, load:null, energy, reducedVolume };
+}
+
+export function suggestWorkoutWeek(profile, settings, date, nutritionDays = {}, existing = {}, earliest = todayKey()) {
+  validateWorkoutSettings(settings);
+  const dates = weekDates(date);
+  const sessions = settings.experience === 'beginner' ? [0, 3] : [0, 2, 4];
+  const programs = {
+    bodyweight:[['squat','incline-push-up','prone-w-raise','glute-bridge','dead-bug'], ['reverse-lunge','push-up','prone-w-raise','calf-raise','plank']],
+    dumbbells:[['goblet-squat','dumbbell-press','dumbbell-row','dumbbell-rdl','dead-bug'], ['reverse-lunge','shoulder-press','dumbbell-row','glute-bridge','plank']],
+    gym:[['leg-press','chest-press','lat-pulldown','leg-curl','dead-bug'], ['goblet-squat','shoulder-press','cable-row','dumbbell-rdl','plank']],
+  };
+  const result = {};
+  sessions.forEach((offset, i) => {
+    const day = dates[offset];
+    if (day < earliest || existing[day]?.length) return;
+    result[day] = programs[settings.equipment][i % 2].map(exerciseId => {
+      const target = workoutSuggestion(profile, settings, exerciseId, day, nutritionDays[day]?.goals?.kcal ?? null);
+      return validateWorkoutEntry({ id:crypto.randomUUID(), exerciseId, ...target, completed:false });
+    });
+  });
+  return result;
+}
+
+export function copyWorkoutWeek(days, date, earliest = todayKey()) {
+  const result = {};
+  for (const source of weekDates(date)) {
+    const target = shiftDate(source, 7);
+    if (target < earliest || days[target]?.length || !days[source]?.length) continue;
+    result[target] = days[source].map(entry => validateWorkoutEntry({ ...entry, id:crypto.randomUUID(), completed:false }));
+  }
+  return result;
+}
+
 export function createInitialState() {
   return { version: 1, profileReady: false,
     profile: structuredClone(DEFAULT_PROFILE), foods: structuredClone(DEFAULT_FOODS),
-    days: {}, weights: [], createdAt: new Date().toISOString() };
+    days: {}, weights: [], workouts:validateWorkouts(), createdAt: new Date().toISOString() };
 }
 
 export function validateState(value) {
@@ -263,7 +393,8 @@ export function validateState(value) {
     if (!isDateKey(w.date)) throw new Error('Weight date is invalid.');
     return { date: w.date, weight: numberIn(w.weight, 30, 250, 'Recorded weight') };
   }).sort((a, b) => a.date.localeCompare(b.date));
-  return { version: 1, profileReady: value.profileReady !== false, profile, foods, days, weights, createdAt: String(value.createdAt || '') };
+  return { version: 1, profileReady: value.profileReady !== false, profile, foods, days, weights,
+    workouts:validateWorkouts(value.workouts), createdAt: String(value.createdAt || '') };
 }
 
 export function suggestions(foods, kcalRemaining, proteinRemaining) {

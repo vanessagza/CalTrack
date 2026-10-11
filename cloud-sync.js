@@ -1,7 +1,7 @@
 import { createClient } from './vendor/supabase.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './sync-config.js';
-import { STORAGE_KEY, createInitialState, validateState } from './core.js';
-import { JournalConflict, mergeJournals, sameJournal } from './journal-merge.js';
+import { STORAGE_KEY, createInitialState, validateState } from './core.js?v=4';
+import { JournalConflict, mergeJournals, sameJournal } from './journal-merge.js?v=4';
 
 export function createJournalSync({ applyJournal, statusChanged, canRefresh }) {
   const client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {

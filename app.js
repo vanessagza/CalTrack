@@ -3,9 +3,12 @@ import {
   todayKey, ageAt, shiftDate, isDateKey, validateProfile, validateFood,
   calculateGoals, portionNutrition, allowedUnits, unitLabel, newEntry,
   totals, remaining, progress, createInitialState, validateState, suggestions,
-} from './core.js';
-import { createJournalSync } from './cloud-sync.js';
-import { sameJournal } from './journal-merge.js';
+  WORKOUT_GOALS, WORKOUT_EXPERIENCE, WORKOUT_EQUIPMENT, EXERCISE_PRESETS,
+  weekDates, validateWorkoutSettings, validateWorkoutEntry, workoutSuggestion,
+  suggestWorkoutWeek, copyWorkoutWeek,
+} from './core.js?v=4';
+import { createJournalSync } from './cloud-sync.js?v=4';
+import { sameJournal } from './journal-merge.js?v=4';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -15,6 +18,7 @@ const paths = {
   foods: '<path d="M6 3v7m-3-7v5a3 3 0 0 0 6 0V3M6 11v10m12-18c-3 3-4 6-4 10h5M19 3v18"/>',
   history: '<path d="M3 11a9 9 0 1 1 2.7 7M3 4v7h7m2-5v6l4 2"/>',
   goals: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  workout: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M8 2v4m8-4v4m-8 8h2m4 0h2m-8 4h2"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', close: '<path d="m6 6 12 12M18 6 6 18"/>',
   left: '<path d="m14 6-6 6 6 6"/>', right: '<path d="m10 6 6 6-6 6"/>',
   edit: '<path d="m15 4 5 5M4 20l4-1L20 7a2 2 0 0 0-3-3L5 16l-1 4Z"/>',
@@ -49,6 +53,7 @@ needsSetup = state.profileReady === false;
 const returningFromSignIn = /(?:access_token|refresh_token|error_description)=/.test(location.hash);
 if (needsSetup && !returningFromSignIn) location.hash = 'goals';
 let selectedDate = todayKey();
+let workoutDate = todayKey();
 let route = location.hash.slice(1) || 'today';
 let foodQuery = '', foodFilter = 'All';
 let pickerFood = null, editingEntryId = null, modalUnit = 'portion', foodBasis = '100';
@@ -243,17 +248,89 @@ function renderGoals() {
     <div><section class="card calc-panel" id="calc-preview">${renderCalculations(p)}</section><section class="card backup-panel"><h2>Keep a copy of your journal.</h2><p>Your settings, foods and logs are saved on this browser and device. Sign in with Sync devices to keep the same journal on your laptop and phone. Export a backup whenever you want an extra copy.</p><div class="backup-buttons"><button class="btn secondary small" data-action="backup">${icon('download')} Export backup</button><button class="btn secondary small" data-action="import">Restore backup</button></div><input type="file" id="backup-file" accept="application/json,.json" hidden></section></div></div>`;
 }
 
+function workoutEntries(date = workoutDate) { return state.workouts.days[date] || []; }
+function workoutTarget(exerciseId, date = workoutDate) {
+  return workoutSuggestion(state.profile, state.workouts.settings, exerciseId, date, state.days[date]?.goals?.kcal ?? null);
+}
+function workoutPrescription(entry, exercise) {
+  return `${entry.sets} sets × ${entry.reps} ${exercise.unit === 'seconds' ? 'sec' : 'reps'}${exercise.unilateral ? ' / side' : ''}${entry.load !== null ? ` · ${num(entry.load,1)} kg` : ''}`;
+}
+function setWorkoutDate(date) {
+  if (!isDateKey(date)) return toast('Choose a valid workout date.', true);
+  workoutDate = date;
+  render();
+}
+function renderWorkouts() {
+  const dates = weekDates(workoutDate), entries = workoutEntries();
+  const weekEntries = dates.flatMap(date => workoutEntries(date));
+  const complete = weekEntries.filter(e => e.completed).length;
+  const settings = state.workouts.settings;
+  const target = workoutTarget('squat');
+  const goalLabel = WORKOUT_GOALS.find(([id]) => id === settings.goal)[1];
+  $('#main').innerHTML = heading('Your week in motion.','Plan your sessions. Build at your pace. Check off each exercise.',
+    `<button class="btn primary" data-action="pick-exercise">${icon('plus')} Add exercise</button>`, 'YOUR WORKOUT PLANNER')
+    + `<section class="card workout-settings" aria-label="Workout preferences"><div class="form-grid">
+      ${selectField('Training purpose','workout-goal',WORKOUT_GOALS,settings.goal)}
+      ${selectField('Experience','workout-experience',WORKOUT_EXPERIENCE,settings.experience)}
+      ${selectField('Available equipment','workout-equipment',WORKOUT_EQUIPMENT,settings.equipment)}
+      </div><p class="secondary-note">These preferences guide new suggestions. Your saved exercises keep their sets, reps and weights.</p></section>
+    <section class="card workout-calendar" aria-label="Weekly workout calendar"><div class="workout-week-heading"><div><span class="small-label">MONDAY – SUNDAY</span><h2>${dateText(dates[0])} – ${dateText(dates[6],{year:'numeric'})}</h2></div><div class="workout-week-controls"><button class="icon-btn" data-action="prev-workout-week" aria-label="Previous workout week">${icon('left')}</button><button class="text-button" data-action="workout-today">This week</button><button class="icon-btn" data-action="next-workout-week" aria-label="Next workout week">${icon('right')}</button></div></div>
+      <div class="workout-days">${dates.map(date => {
+        const list = workoutEntries(date), done = list.filter(e => e.completed).length;
+        return `<button class="workout-day${date === workoutDate ? ' selected' : ''}${date === todayKey() ? ' is-today' : ''}" data-action="workout-day" data-date="${date}" aria-pressed="${date === workoutDate}" aria-label="${dateText(date,{weekday:'long',year:'numeric'})}: ${done} of ${list.length} exercises complete">
+          <span>${dateText(date,{weekday:'short'}).split(',')[0]}</span><strong>${Number(date.slice(-2))}</strong><small>${list.length ? `${done}/${list.length} done` : 'Rest'}</small><span class="workout-day-dot${list.length && done === list.length ? ' done' : ''}${list.length ? ' planned' : ''}" aria-hidden="true"></span></button>`;
+      }).join('')}</div><div class="workout-week-summary"><span><strong>${complete} / ${weekEntries.length}</strong> exercises complete</span><span><strong>${dates.filter(date => workoutEntries(date).length).length}</strong> training days</span><progress value="${complete}" max="${weekEntries.length || 1}" aria-label="Weekly exercise completion"></progress></div></section>
+    <div class="workout-layout"><section class="card workout-session"><div class="card-head"><div><h2>${dateText(workoutDate,{weekday:'long',month:'long'})}</h2><p>${entries.length ? `${entries.filter(e => e.completed).length} of ${entries.length} exercises complete` : 'A little space to move, or a day to recover.'}</p></div><input type="date" id="workout-date" value="${workoutDate}" aria-label="Workout date"></div>
+      ${entries.length ? `<ul class="workout-list">${entries.map(entry => {
+        const exercise = EXERCISE_PRESETS.find(e => e.id === entry.exerciseId);
+        return `<li class="workout-exercise${entry.completed ? ' completed' : ''}"><label class="workout-check"><input type="checkbox" data-workout-complete="${esc(entry.id)}" ${entry.completed ? 'checked' : ''} aria-label="Mark ${esc(exercise.name)} complete"><span><strong>${esc(exercise.name)}</strong><small>${workoutPrescription(entry,exercise)}</small><span class="workout-exercise-meta">${esc(exercise.group)} · ${WORKOUT_EQUIPMENT.find(([id]) => id === exercise.equipment)[1].replace(' & bodyweight','')}${entry.note ? `<br>${esc(entry.note)}` : ''}</span></span></label><div class="row-actions"><button class="icon-btn" data-action="edit-workout" data-id="${esc(entry.id)}" aria-label="Edit ${esc(exercise.name)}">${icon('edit')}</button><button class="icon-btn delete" data-action="remove-workout" data-id="${esc(entry.id)}" aria-label="Remove ${esc(exercise.name)}">${icon('trash')}</button></div></li>`;
+      }).join('')}</ul>` : `<div class="empty-state workout-empty">${icon('workout')}<h3>No exercises planned.</h3><p>Add an exercise for this day, or suggest a week using your preferences.</p><button class="btn secondary small" data-action="pick-exercise">${icon('plus')} Add an exercise</button></div>`}
+      ${entries.length ? '<div class="log-footer"><button class="btn secondary small" data-action="pick-exercise">'+icon('plus')+' Add another exercise</button></div>' : ''}</section>
+      <aside class="card workout-guide"><span class="small-label">BUILT AROUND YOUR GOAL</span><h2>${esc(goalLabel)}.</h2><p>Start with ${settings.experience === 'beginner' ? 'two' : 'three'} full-body sessions, with recovery days in between.</p><button class="btn primary wide" data-action="suggest-workout-week">${icon('plus')} Suggest this week</button><button class="btn secondary wide" data-action="copy-workout-week" ${weekEntries.length ? '' : 'disabled'}>Copy plan to next week ${icon('right')}</button><p class="secondary-note">Suggestions fill empty session days from today onward. Copying keeps your edits, resets checkboxes and fills only empty days next week.</p>
+        <details class="workout-rationale"><summary>How suggestions are chosen</summary><p>Your training purpose, experience and exercise type guide sets and reps. Your weight (${num(state.profile.weight,1)} kg), height (${num(state.profile.height,1)} cm), age and formula sex setting estimate maintenance energy.</p><div class="workout-energy"><span>Selected day’s calorie target<strong>${num(target.energy.kcal)} kcal</strong></span><span>Estimated maintenance<strong>${num(target.energy.tdee)} kcal</strong></span></div><p>${target.reducedVolume ? 'Your calorie target is over 10% below estimated maintenance, so the suggested number of sets is reduced.' : 'Your calorie target does not trigger a reduction in suggested sets.'} The planner uses your saved calorie target; a partial food log is not treated as a full day of intake.</p><p>These are starting suggestions. Measurements cannot predict your strength or the right lifting weight.</p><a href="#goals">Edit measurements & calorie target ↗</a></details>
+        <div class="workout-progression"><strong>Ready to progress?</strong><p>When all sets feel controlled with about 2–3 reps left in reserve, edit the exercise to add a rep or a small weight increase. Copy your updated week to reuse it.</p><small>For dumbbells, enter the weight of each dumbbell. Use 0 kg for bodyweight. Warm-up sets are separate.</small></div></aside></div>`;
+}
+function exercisePickerResults() {
+  const query = ($('#exercise-search')?.value || '').trim().toLowerCase();
+  const group = $('#exercise-group')?.value || 'All';
+  const equipment = $('#exercise-equipment')?.value || 'All';
+  const available = equipment === 'All' ? ['bodyweight','dumbbells','gym'] : equipment === 'gym' ? ['bodyweight','dumbbells','gym'] : equipment === 'dumbbells' ? ['bodyweight','dumbbells'] : ['bodyweight'];
+  const list = EXERCISE_PRESETS.filter(e => available.includes(e.equipment) && (group === 'All' || e.group === group) && `${e.name} ${e.group}`.toLowerCase().includes(query));
+  return list.length ? list.map(e => `<button class="pick-food exercise-preset" data-action="choose-exercise" data-id="${e.id}"><span class="food-tile">${icon('workout')}</span><span><strong>${esc(e.name)}</strong><small>${esc(e.group)} · ${e.equipment === 'bodyweight' ? 'Bodyweight' : e.equipment === 'dumbbells' ? 'Dumbbell' : 'Gym machine'}</small></span><span class="pick-kcal">${icon('plus')}</span></button>`).join('') : '<p class="subtle-note">No exercises match. Try another search or equipment filter.</p>';
+}
+function showExercisePicker() {
+  openDialog(dialogHeading('Choose your exercise.',`Add to ${dateText(workoutDate,{weekday:'long'})}. Sets and reps start with suggestions you can edit.`)
+    + `<div class="search">${icon('search')}<input id="exercise-search" placeholder="Search exercises…" aria-label="Search exercises"></div><div class="form-grid exercise-filters">${selectField('Exercise type','exercise-group',[['All','All types'],...['Lower body','Upper push','Upper pull','Core'].map(x => [x,x])],'All')}${selectField('Equipment','exercise-equipment',[['All','All equipment'],...WORKOUT_EQUIPMENT],state.workouts.settings.equipment)}</div><div id="exercise-results" class="dialog-search-results"></div>`);
+  $('#exercise-results').innerHTML = exercisePickerResults();
+}
+function showWorkoutEditor(exerciseId, entry = null) {
+  const exercise = EXERCISE_PRESETS.find(e => e.id === exerciseId);
+  if (!exercise) throw new Error('Choose an exercise from the preset list.');
+  const value = entry || { ...workoutTarget(exerciseId), note:'' };
+  const seconds = exercise.unit === 'seconds';
+  openDialog(dialogHeading(entry ? 'Edit your exercise.' : 'Plan your exercise.',`${esc(exercise.name)} · ${esc(exercise.group)}`)
+    + `<form id="workout-form" data-id="${esc(entry?.id || '')}" data-exercise-id="${exercise.id}" data-source-date="${workoutDate}"><div class="form-grid">
+      ${field('Scheduled date','exercise-date',workoutDate,'date','required')}
+      ${field('Sets','exercise-sets',value.sets,'number','required min="1" max="10" step="1"')}
+      ${field(seconds ? 'Seconds per set' : `Reps per set${exercise.unilateral ? ' · per side' : ''}`,'exercise-reps',value.reps,'number',`required min="1" max="${seconds ? 300 : 100}" step="1"`)}
+      ${field('Weight · kg (optional)','exercise-load',value.load ?? '', 'number','min="0" max="500" step="0.1"','Per dumbbell for dumbbell exercises; 0 for bodyweight.')}
+      <div class="field full"><label for="exercise-note">Notes · optional</label><textarea id="exercise-note" name="exercise-note" maxlength="400" placeholder="For example: use the 6 kg dumbbells">${esc(value.note)}</textarea></div></div>
+      <div class="dialog-food-details">${esc(exercise.cue)}<br>Choose a weight or variation that leaves about 2–3 reps in reserve. ${entry ? 'Moving this exercise to another date resets its checkbox.' : 'You can change every suggested target before saving.'}</div>
+      <button class="text-button" type="button" data-action="workout-use-suggestion">Use suggested sets & ${seconds ? 'seconds' : 'reps'}</button>
+      <div class="form-error" id="workout-error" role="alert"></div><div class="dialog-footer"><button class="btn secondary" type="button" data-action="close-dialog">Cancel</button><button class="btn primary" type="submit">${icon('check')} ${entry ? 'Save changes' : 'Add exercise'}</button></div></form>`);
+}
+
 function render() {
-  if (!['today','foods','history','goals'].includes(route)) route='today';
+  if (!['today','foods','history','goals','workouts'].includes(route)) route='today';
   for (const a of document.querySelectorAll('[data-nav]')) {
     const active = a.dataset.nav===route;
     a.classList.toggle('active',active);
     if (active) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current');
   }
-  $('#page-label').textContent = {today:'Daily intake',foods:'My foods',history:'History',goals:'Profile & goals'}[route];
+  $('#page-label').textContent = {today:'Daily intake',foods:'My foods',history:'History',goals:'Profile & goals',workouts:'Workouts'}[route];
   $('#sidebar-name').textContent = state.profile.name;
   $('#food-count').textContent = state.foods.length;
-  ({today:renderToday,foods:renderFoods,history:renderHistory,goals:renderGoals}[route])();
+  ({today:renderToday,foods:renderFoods,history:renderHistory,goals:renderGoals,workouts:renderWorkouts}[route])();
   if (needsSetup) $('#main').insertAdjacentHTML('afterbegin', '<div class="notice">'+icon('info')+'<span>Welcome. The measurements below are placeholders. Set your own profile and save it, or use <strong>Restore backup</strong> below to bring over your existing settings and food journal.</span></div>');
   updateSaveStatus();
 }
@@ -323,7 +400,7 @@ document.addEventListener('click',event=>{
   const button=event.target.closest('[data-action]');
   if(!button) return;
   const {action,id,date}=button.dataset;
-  if(needsSetup&&['pick-food','food-portion','add-suggestion','copy-day','log-weight'].includes(action)){location.hash='goals';toast('Save your profile or restore your backup first.');return;}
+  if(needsSetup&&['pick-food','food-portion','add-suggestion','copy-day','log-weight','pick-exercise','choose-exercise','suggest-workout-week','copy-workout-week'].includes(action)){location.hash='goals';toast('Save your profile or restore your backup first.');return;}
   try {
     if(action==='sync-account') return showSyncAccount();
     if(action==='sync-upload') { journalSync.uploadLocal();closeDialog();return; }
@@ -332,6 +409,39 @@ document.addEventListener('click',event=>{
     if(action==='sync-signout') { void journalSync.signOut().then(closeDialog).catch(error=>toast(error.message,true));return; }
     if(action==='sync-use-cloud'||action==='sync-use-local') {
       void journalSync.resolveConflict(action==='sync-use-local').then(closeDialog).catch(error=>toast(error.message,true));return;
+    }
+    if(action==='pick-exercise') return showExercisePicker();
+    if(action==='choose-exercise') return showWorkoutEditor(id);
+    if(action==='workout-day') return setWorkoutDate(date);
+    if(action==='workout-today') return setWorkoutDate(todayKey());
+    if(action==='prev-workout-week') return setWorkoutDate(shiftDate(workoutDate,-7));
+    if(action==='next-workout-week') return setWorkoutDate(shiftDate(workoutDate,7));
+    if(action==='edit-workout') {
+      const entry=workoutEntries().find(e=>e.id===id);
+      if(entry)showWorkoutEditor(entry.exerciseId,entry);
+      return;
+    }
+    if(action==='remove-workout') {
+      undoState=structuredClone(state);
+      state.workouts.days[workoutDate]=workoutEntries().filter(e=>e.id!==id);
+      if(!state.workouts.days[workoutDate].length)delete state.workouts.days[workoutDate];
+      save();render();toast('Exercise removed.',false,true);return;
+    }
+    if(action==='workout-use-suggestion') {
+      const form=$('#workout-form');
+      const target=workoutTarget(form.dataset.exerciseId,$('#exercise-date').value);
+      $('#exercise-sets').value=target.sets;$('#exercise-reps').value=target.reps;
+      $('#workout-error').classList.remove('visible');return;
+    }
+    if(action==='suggest-workout-week'||action==='copy-workout-week') {
+      const additions=action==='suggest-workout-week'
+        ? suggestWorkoutWeek(state.profile,state.workouts.settings,workoutDate,state.days,state.workouts.days)
+        : copyWorkoutWeek(state.workouts.days,workoutDate);
+      const count=Object.values(additions).flat().length;
+      if(!count)return toast(action==='suggest-workout-week'?'No empty upcoming session days in this week. Choose another week or add exercises yourself.':'No exercises to copy into empty upcoming days next week.');
+      undoState=structuredClone(state);Object.assign(state.workouts.days,additions);
+      if(action==='copy-workout-week')workoutDate=shiftDate(workoutDate,7);
+      save();render();toast(`${count} exercises ${action==='suggest-workout-week'?'planned':'copied to next week'}.`,false,true);return;
     }
     if(action==='pick-food') return showPicker();
     if(action==='close-dialog') return closeDialog();
@@ -351,7 +461,7 @@ document.addEventListener('click',event=>{
       undoState=structuredClone(state);state=pendingImport;needsSetup=state.profileReady===false;pendingImport=null;loadError='';save();closeDialog();render();toast('Backup restored.',false,true);return;
     }
     if(action==='undo') {
-      if(!undoState)return;state=undoState;undoState=null;save();render();toast('Restored.');return;
+      if(!undoState)return;state=undoState;needsSetup=state.profileReady===false;undoState=null;save();render();toast('Restored.');return;
     }
     if(action==='food-filter') { foodFilter=button.dataset.filter;renderFoods();return; }
     if(action==='favorite') { const f=state.foods.find(f=>f.id===id);f.favorite=!f.favorite;save();renderFoods();return; }
@@ -385,6 +495,7 @@ document.addEventListener('input',event=>{
     $('#foods-empty').innerHTML=list.length?'':empty('No foods found.','Try another search or save a new food.');
   }
   if(el.id==='picker-search') $('#picker-results').innerHTML=pickerResults(el.value);
+  if(el.id==='exercise-search') $('#exercise-results').innerHTML=exercisePickerResults();
   if(el.id==='amount') updatePortionPreview();
   if(el.id==='budget-slider') {
     try {
@@ -402,6 +513,19 @@ document.addEventListener('input',event=>{
 document.addEventListener('change',async event=>{
   const el=event.target;
   try {
+    if(el.id==='workout-date')return setWorkoutDate(el.value);
+    if(['workout-goal','workout-experience','workout-equipment'].includes(el.id)) {
+      state.workouts.settings=validateWorkoutSettings({goal:$('#workout-goal').value,experience:$('#workout-experience').value,equipment:$('#workout-equipment').value});
+      save();renderWorkouts();$(`#${el.id}`).focus();return;
+    }
+    if(['exercise-group','exercise-equipment'].includes(el.id)) {
+      $('#exercise-results').innerHTML=exercisePickerResults();return;
+    }
+    if(el.dataset.workoutComplete) {
+      const entry=workoutEntries().find(e=>e.id===el.dataset.workoutComplete);
+      if(entry){entry.completed=el.checked;save();renderWorkouts();$('[data-workout-complete="'+CSS.escape(entry.id)+'"]')?.focus();}
+      return;
+    }
     if(el.id==='selected-date') return setDate(el.value);
     if(['budget-slider','budget-number'].includes(el.id)) {const focusId=document.activeElement===el?el.id:null;updateDayGoals(el.value);renderToday();if(focusId)$(`#${focusId}`).focus();return;}
     if(el.id==='unit') {
@@ -421,7 +545,7 @@ document.addEventListener('change',async event=>{
       const file=el.files[0];if(!file)return;
       if(file.size>10*1024*1024)throw new Error('Choose a backup smaller than 10 MB.');
       pendingImport=validateState(JSON.parse(await file.text()));
-      openDialog(dialogHeading('Restore this journal?',`The backup contains ${pendingImport.foods.length} saved foods, ${Object.keys(pendingImport.days).length} dates, and ${pendingImport.weights.length} weight records.`)
+      openDialog(dialogHeading('Restore this journal?',`The backup contains ${pendingImport.foods.length} saved foods, ${Object.keys(pendingImport.days).length} food dates, ${pendingImport.weights.length} weight records, and ${Object.values(pendingImport.workouts.days).flat().length} workout exercises.`)
         + `<p class="subtle-note">This replaces the journal in this browser. Export your current data first if you want to keep both copies.</p><div class="dialog-footer"><button class="btn secondary" data-action="backup">Export current data</button><button class="btn primary" data-action="restore-confirm">Restore backup</button></div>`);
     }
     if(el.closest('#profile-form')) $('#calc-preview').innerHTML=renderCalculations(readProfileForm());
@@ -444,6 +568,23 @@ document.addEventListener('submit',async event=>{
       } catch(error) { showError('#sync-signin-error',error); }
       finally { button.disabled=false; }
       return;
+    }
+    if(form.id==='workout-form') {
+      if(needsSetup)throw new Error('Save your profile first to personalize workout suggestions.');
+      const data=Object.fromEntries(new FormData(form)),date=data['exercise-date'],source=form.dataset.sourceDate;
+      if(!isDateKey(date))throw new Error('Choose a valid workout date.');
+      const existing=workoutEntries(source).find(e=>e.id===form.dataset.id);
+      const entry=validateWorkoutEntry({id:existing?.id||crypto.randomUUID(),exerciseId:form.dataset.exerciseId,
+        sets:data['exercise-sets'],reps:data['exercise-reps'],load:data['exercise-load'],note:data['exercise-note'],
+        completed:source===date&&(existing?.completed??false)});
+      if(workoutEntries(date).length>=50&&(!existing||date!==source))throw new Error('One day can contain up to 50 exercises.');
+      if(existing&&date===source)state.workouts.days[date]=workoutEntries(date).map(e=>e.id===existing.id?entry:e);
+      else {
+        if(existing){state.workouts.days[source]=workoutEntries(source).filter(e=>e.id!==existing.id);if(!state.workouts.days[source].length)delete state.workouts.days[source];}
+        state.workouts.days[date]=[...workoutEntries(date),entry];
+      }
+      workoutDate=date;
+      save();closeDialog();render();toast(existing?'Exercise updated.':'Exercise added to your plan.');return;
     }
     if(form.id==='portion-form') {
       const data=Object.fromEntries(new FormData(form));
@@ -482,7 +623,7 @@ document.addEventListener('submit',async event=>{
       save();closeDialog();render();toast('Foods copied into this day.',false,true);
     }
   } catch(error) {
-    const selector={ 'portion-form':'#portion-error','food-form':'#food-error','profile-form':'#profile-error','weight-form':'#weight-error' }[form.id];
+    const selector={ 'portion-form':'#portion-error','food-form':'#food-error','profile-form':'#profile-error','weight-form':'#weight-error','workout-form':'#workout-error' }[form.id];
     if(selector)showError(selector,error);else toast(error.message,true);
   }
 });
@@ -495,7 +636,7 @@ window.addEventListener('storage',event=>{
 $('#dialog').addEventListener('click',event=>{if(event.target===$('#dialog'))closeDialog();});
 $('#dialog').addEventListener('close',()=>{lastFocused?.isConnected&&lastFocused.focus();});
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'&&route==='today')render();
+  if(document.visibilityState==='visible'&&['today','workouts'].includes(route))render();
 });
 for(const el of document.querySelectorAll('[data-icon]'))el.innerHTML=icon(el.dataset.icon);
 render();

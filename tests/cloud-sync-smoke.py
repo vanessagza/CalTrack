@@ -158,9 +158,29 @@ with sync_playwright() as p:
     callback.goto(url+'#access_token='+token(ALICE)+'&refresh_token=synthetic-refresh&token_type=bearer&expires_in=3600')
     synced(callback);expect(callback.locator('#sidebar-name')).to_have_text('Laptop edit')
     assert 'access_token=' not in callback.url
+    # Exercise targets and completion must sync, merge and survive reload too.
+    laptop.locator('[data-nav="workouts"]').click()
+    laptop.get_by_role('button',name='Add exercise',exact=True).click()
+    laptop.locator('[data-action="choose-exercise"][data-id="squat"]').click()
+    laptop.locator('#exercise-sets').fill('4');laptop.locator('#exercise-reps').fill('12')
+    laptop.locator('#exercise-load').fill('0')
+    laptop.locator('#workout-form button[type="submit"]').click();synced(laptop)
+    workout_day=next(iter(rows[ALICE]['journal']['workouts']['days']))
+    exercise=rows[ALICE]['journal']['workouts']['days'][workout_day][0]
+    assert exercise['sets']==4 and exercise['reps']==12 and exercise['load']==0
+    phone.locator('[data-nav="workouts"]').click()
+    phone.evaluate('window.dispatchEvent(new Event("focus"))')
+    expect(phone.locator('[data-workout-complete]')).to_have_count(1,timeout=15000)
+    phone.locator('[data-workout-complete]').check();synced(phone)
+    assert rows[ALICE]['journal']['workouts']['days'][workout_day][0]['completed']
+    laptop.evaluate('window.dispatchEvent(new Event("focus"))')
+    expect(laptop.locator('[data-workout-complete]')).to_be_checked(timeout=15000)
+    laptop.reload();synced(laptop)
+    laptop.locator('[data-nav="workouts"]').click()
+    expect(laptop.locator('[data-workout-complete]')).to_be_checked()
     assert not errors,errors
     laptop.screenshot(path='/tmp/caltrack-sync-desktop.png')
     phone.screenshot(path='/tmp/caltrack-sync-mobile.png')
     browser.close()
 server.shutdown()
-print('PASS: edits during an upload, two-device sync, offline edits and restart, concurrent merge, conflict resolution, account isolation, initial upload, sign-out, email login request, sign-in callback and mobile layout (mocked Supabase API)')
+print('PASS: edits during an upload, two-device sync, offline edits and restart, concurrent merge, conflict resolution, account isolation, initial upload, sign-out, email login request, sign-in callback, workout targets and completion sync, and mobile layout (mocked Supabase API)')
