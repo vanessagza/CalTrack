@@ -20,40 +20,43 @@
 @media(max-width:700px){.topbar-actions{gap:10px}.theme-toggle{padding:7px;gap:6px}.theme-label{display:none}}
 @media(max-width:380px){.topbar-actions .save-state{display:none}}
 
-/* Forest tones keep the same visual hierarchy in dark mode. */
-:root[data-theme="dark"]{color-scheme:dark;--bg:#111a16;--paper:#1b2821;--ink:#e3ece4;--muted:#a3b1a6;--line:#34453a;--green:#a0cfb7;--green-light:#293e32;--lime:#eaf0d0;--protein:#93b5ed;--carbs:#e2b864;--fat:#ceabd5;--shadow:0 4px 28px #0002}
+/* Blue tones keep the same visual hierarchy in dark mode. */
+:root[data-theme="dark"]{color-scheme:dark;--bg:#111827;--paper:#1c273b;--ink:#e5ecf7;--muted:#a6b4cb;--line:#35455f;--green:#a1c4ff;--green-light:#293c59;--lime:#e2edff;--protein:#93b5ed;--carbs:#e2b864;--fat:#ceabd5;--shadow:0 4px 28px #0002}
 [data-theme="dark"] :is(.sidebar,.btn.secondary,.icon-btn,.date-control,.budget-value input,.suggestion,.search input,.filter-pill,dialog,.pick-food,.noscript){background:var(--paper)}
-[data-theme="dark"] :is(.topbar,.sidebar-note,.budget-row,.log-header,.weight-chart,.log-totals,.dialog-food-details){background:#202e25}
+[data-theme="dark"] :is(.topbar,.sidebar-note,.budget-row,.log-header,.weight-chart,.log-totals,.dialog-food-details){background:#202e45}
 [data-theme="dark"] :is(.sidebar nav a:hover,.btn.secondary:hover,.icon-btn:hover,.pick-food:hover,.form-preview,.calc-result,.equation code,.portion-presets button,.suggestion .icon-btn){background:var(--green-light)}
 [data-theme="dark"] :is(.workspace-label,.sidebar nav a,.sidebar-note p,.breadcrumb,.btn.secondary,.icon-btn,.date-control input,.macro-values span,.log-header,.meal-label,.food-detail,.log-amount,.log-note,.next-card .small-label,.next-card>p,.next-note,.goal-caption,.filter-pill,.field label,.field>span,.calc-result span,footer,footer span,.secondary-note){color:var(--muted)}
 [data-theme="dark"] .sidebar nav a.active{color:var(--green)}
 [data-theme="dark"] .breadcrumb strong{color:var(--ink)}
 [data-theme="dark"] .crumb-divider{color:var(--line)}
-[data-theme="dark"] :is(.btn.primary,.filter-pill.active,.skip-link,.toast){background:var(--green);color:#14261c}
-[data-theme="dark"] .btn.primary:hover{background:#b5dec6}
-[data-theme="dark"] .brand-mark{background:#355847}
+[data-theme="dark"] :is(.btn.primary,.filter-pill.active,.skip-link,.toast){background:var(--green);color:#142440}
+[data-theme="dark"] .btn.primary:hover{background:#bdd6ff}
+[data-theme="dark"] .brand-mark{background:#35527d}
 [data-theme="dark"] :is(.nav-count,.avatar,.badge){background:var(--green-light);color:var(--green);border-color:var(--line)}
 [data-theme="dark"] .ring .track{stroke:var(--line)}
 [data-theme="dark"] .progress-track{background:var(--line)}
-[data-theme="dark"] :is(.tiny-pill,.label-tag,.notice){background:#2d3b29;color:#c1cfaa;border-color:var(--line)}
+[data-theme="dark"] :is(.tiny-pill,.label-tag,.notice){background:#2b3d59;color:#b9d1f5;border-color:var(--line)}
 [data-theme="dark"] :is(.label-tag.estimate,.formula-badge){background:#3c3325;color:#e0c298}
-[data-theme="dark"] .next-card{background:#253426;border-color:var(--line)}
+[data-theme="dark"] .next-card{background:#24344e;border-color:var(--line)}
 [data-theme="dark"] :is(.suggestion,.food-row,.calc-result,.portion-presets button){border-color:var(--line)}
-[data-theme="dark"] :is(.field input,.field select,.field textarea){background:#17221d;border-color:var(--line)}
+[data-theme="dark"] :is(.field input,.field select,.field textarea){background:#172238;border-color:var(--line)}
 [data-theme="dark"] .portion-presets button{color:var(--green)}
-[data-theme="dark"] .food-tile{background:#333f2a;color:#becda4}
+[data-theme="dark"] .food-tile{background:#2f4160;color:#b8cff4}
 [data-theme="dark"] .food-tile.snack{background:#44352a;color:#dfb394}
-[data-theme="dark"] .food-tile.protein{background:#293d40;color:#a1c5ce}
+[data-theme="dark"] .food-tile.protein{background:#293f59;color:#a5caff}
 [data-theme="dark"] .food-tile.dairy{background:#353449;color:#bbbde3}
-[data-theme="dark"] .food-tile.fruit{background:#33412a;color:#bdd39e}
+[data-theme="dark"] .food-tile.fruit{background:#2e415e;color:#b7cff5}
 [data-theme="dark"] .favorite{color:var(--muted)}
-[data-theme="dark"] .favorite.active{color:#c6cc8c}
+[data-theme="dark"] .favorite.active{color:#bfd5ff}
 [data-theme="dark"] :is(.btn.danger,.icon-btn.delete:hover,.form-error){background:#452b25;color:#f1b3a2}
 [data-theme="dark"] .toast.error{background:#814632;color:white}
-[data-theme="dark"] .toast-undo{color:#14261c}
+[data-theme="dark"] .toast-undo{color:#142440}
 [data-theme="dark"] :is(.day-over,.macro-bottom .exceeded){color:#e2bd91}
 [data-theme="dark"] .weight-chart text{fill:var(--muted)}
 [data-theme="dark"] .weight-chart line{stroke:var(--line)}
 [data-theme="dark"] .weight-chart polyline{stroke:var(--green)}
 [data-theme="dark"] .weight-chart circle{fill:var(--green)}
-[data-theme="dark"] dialog::backdrop{background:#050c08aa}
+[data-theme="dark"] dialog::backdrop{background:#060d1baa}
+[data-theme="dark"] .status-dot:not(.failed){background:#87aae0}
+[data-theme="dark"] :is(button,a,input,select,textarea):focus-visible{outline-color:#9bbfff}
+[data-theme="dark"] :is(.empty-state svg,.weight-glance svg){color:#a6b9d8}
