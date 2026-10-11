@@ -1,4 +1,5 @@
-import { validateState, validateWorkouts } from './core.js?v=4';
+import { validateState, validateWorkouts } from './core.js?v=5';
+import { validatePreferences } from './preferences.js?v=5';
 
 const canonical = value => JSON.stringify(value, function (key, item) {
   return item && typeof item === 'object' && !Array.isArray(item)
@@ -49,6 +50,12 @@ export function mergeJournals(base, local, remote) {
   for (const { date, ...entry } of keyed(...workoutEntries, 'id')) {
     (workoutDays[date] ||= []).push(entry);
   }
+  const preferences=[base,local,remote].map(journal=>validatePreferences(journal.preferences));
+  const mergedPreferences=fields(...preferences.map(({ palettes,typography,...controls })=>controls));
+  // Merge individual controls so unrelated appearance edits on two devices survive.
+  mergedPreferences.palettes=Object.fromEntries(['light','dark'].map(theme=>
+    [theme,fields(...preferences.map(p=>p.palettes[theme]))]));
+  mergedPreferences.typography=fields(...preferences.map(p=>p.typography));
   return validateState({
     version: 1,
     profileReady: choice(base.profileReady, local.profileReady, remote.profileReady),
@@ -57,6 +64,7 @@ export function mergeJournals(base, local, remote) {
     weights: keyed(base.weights, local.weights, remote.weights, 'date'),
     days,
     workouts: { settings:fields(...workouts.map(workout => workout.settings)), days:workoutDays },
+    preferences:mergedPreferences,
     createdAt: remote.createdAt,
   });
 }

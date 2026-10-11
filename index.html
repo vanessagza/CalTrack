@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#1d5145">
   <meta name="description" content="Your personal nutrition and workout tracker. Log your food, plan weekly workouts and track your progress.">
   <title>Daily Balance · Nutrition & workouts</title>
-  <script src="./theme.js?v=2"></script>
+  <script src="./theme.js?v=5"></script>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=4">
+  <link rel="stylesheet" href="./styles.css?v=5">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -24,10 +24,11 @@
       <a href="#workouts" data-nav="workouts"><span class="nav-icon" data-icon="workout"></span> Workouts</a>
       <a href="#history" data-nav="history"><span class="nav-icon" data-icon="history"></span> History</a>
       <a href="#goals" data-nav="goals"><span class="nav-icon" data-icon="goals"></span> Profile & goals</a>
+      <a href="#settings" data-nav="settings"><span class="nav-icon" data-icon="settings"></span> Settings</a>
     </nav>
     <div class="sidebar-bottom">
       <div class="sidebar-note"><span class="small-label">ONE DAY AT A TIME</span><p>Know what you ate.<br>Choose what comes next.</p></div>
-      <a class="person" href="#goals"><span class="avatar" aria-hidden="true">DB</span><span><strong id="sidebar-name">You</strong><small>Personal tracker</small></span><span class="person-arrow" aria-hidden="true">↗</span></a>
+      <a class="person" href="#settings"><span class="avatar" id="profile-avatar" aria-hidden="true">DB</span><span><strong id="sidebar-name">You</strong><small>Personal tracker</small></span><span class="person-arrow" aria-hidden="true">↗</span></a>
     </div>
   </aside>
   <div class="page">
@@ -38,6 +39,6 @@
   <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <noscript><div class="noscript">Enable JavaScript to use your food log and calculations.</div></noscript>
-  <script type="module" src="./app.js?v=4"></script>
+  <script type="module" src="./app.js?v=5"></script>
 </body>
 </html>

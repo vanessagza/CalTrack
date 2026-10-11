@@ -1,7 +1,8 @@
 import { createClient } from './vendor/supabase.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './sync-config.js';
-import { STORAGE_KEY, createInitialState, validateState } from './core.js?v=4';
-import { JournalConflict, mergeJournals, sameJournal } from './journal-merge.js?v=4';
+import { STORAGE_KEY, createInitialState, validateState } from './core.js?v=5';
+import { DEFAULT_PREFERENCES } from './preferences.js?v=5';
+import { JournalConflict, mergeJournals, sameJournal } from './journal-merge.js?v=5';
 
 export function createJournalSync({ applyJournal, statusChanged, canRefresh }) {
   const client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -11,7 +12,8 @@ export function createJournalSync({ applyJournal, statusChanged, canRefresh }) {
   });
   let user = null, cache = null, phase = 'starting', message = 'Checking sign-in…';
   let epoch = 0, busy = false, queued = false, timer, stopped = false, revisionRetries = 0;
-  const hasRecords = journal => journal.profileReady || journal.weights.length || Object.keys(journal.days).length;
+  const hasRecords = journal => journal.profileReady || journal.weights.length || Object.keys(journal.days).length ||
+    Object.keys(journal.workouts.days).length || !sameJournal(journal.preferences,DEFAULT_PREFERENCES);
   const cacheKey = id => `daily-balance-account-${id}`;
   const emit = (next, detail = '') => {
     phase = next; message = detail;

@@ -1,3 +1,5 @@
+import { validatePreferences } from './preferences.js?v=5';
+
 export const STORAGE_KEY = 'daily-balance-v1';
 export const TIME_ZONE = 'Asia/Tashkent';
 export const NUTRIENTS = ['kcal', 'protein', 'carbs', 'fat'];
@@ -354,7 +356,7 @@ export function copyWorkoutWeek(days, date, earliest = todayKey()) {
 export function createInitialState() {
   return { version: 1, profileReady: false,
     profile: structuredClone(DEFAULT_PROFILE), foods: structuredClone(DEFAULT_FOODS),
-    days: {}, weights: [], workouts:validateWorkouts(), createdAt: new Date().toISOString() };
+    days: {}, weights: [], workouts:validateWorkouts(), preferences:validatePreferences(), createdAt: new Date().toISOString() };
 }
 
 export function validateState(value) {
@@ -394,7 +396,7 @@ export function validateState(value) {
     return { date: w.date, weight: numberIn(w.weight, 30, 250, 'Recorded weight') };
   }).sort((a, b) => a.date.localeCompare(b.date));
   return { version: 1, profileReady: value.profileReady !== false, profile, foods, days, weights,
-    workouts:validateWorkouts(value.workouts), createdAt: String(value.createdAt || '') };
+    workouts:validateWorkouts(value.workouts), preferences:validatePreferences(value.preferences), createdAt: String(value.createdAt || '') };
 }
 
 export function suggestions(foods, kcalRemaining, proteinRemaining) {

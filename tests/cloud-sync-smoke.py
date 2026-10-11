@@ -178,9 +178,54 @@ with sync_playwright() as p:
     laptop.reload();synced(laptop)
     laptop.locator('[data-nav="workouts"]').click()
     expect(laptop.locator('[data-workout-complete]')).to_be_checked()
+    # Appearance settings belong to the account and merge individual controls.
+    laptop.locator('[data-nav="settings"]').click()
+    laptop.locator('#appearance-mode').select_option('dark')
+    laptop.get_by_label('Background red value',exact=True).fill('4')
+    laptop.get_by_label('Background red value',exact=True).press('Tab');synced(laptop)
+    phone.locator('[data-nav="settings"]').click()
+    phone.evaluate('window.dispatchEvent(new Event("focus"))')
+    expect(phone.locator('#color-background-hex')).to_have_value('#041827',timeout=15000)
+    phone_ctx.set_offline(True)
+    phone.locator('#color-subtext-hex').fill('#ffc4dc');phone.locator('#color-subtext-hex').press('Tab')
+    expect(phone.locator('#save-status')).to_have_text('Saved here · offline',timeout=10000)
+    laptop.get_by_label('Background blue value',exact=True).fill('9')
+    laptop.get_by_label('Background blue value',exact=True).press('Tab');synced(laptop)
+    phone_ctx.set_offline(False);synced(phone)
+    preferences=rows[ALICE]['journal']['preferences']
+    assert preferences['palettes']['dark']['background']=='#041809'
+    assert preferences['palettes']['dark']['subtext']=='#ffc4dc'
+    laptop.locator('[data-nav="settings"]').click()
+    laptop.evaluate('window.dispatchEvent(new Event("focus"))')
+    expect(laptop.locator('#color-subtext-hex')).to_have_value('#ffc4dc',timeout=15000)
+    png=laptop.evaluate('''() => {const c=document.createElement('canvas');c.width=c.height=20;
+      const ctx=c.getContext('2d');ctx.fillStyle='#cc99bb';ctx.fillRect(0,0,20,20);
+      return c.toDataURL('image/png').split(',')[1];}''')
+    laptop.locator('#avatar-file').set_input_files({'name':'sample.png','mimeType':'image/png','buffer':base64.b64decode(png)})
+    expect(laptop.locator('.settings-avatar img')).to_be_visible();synced(laptop)
+    assert rows[ALICE]['journal']['preferences']['avatar'].startswith('data:image/jpeg;base64,')
+    phone.locator('[data-nav="settings"]').click()
+    phone.evaluate('window.dispatchEvent(new Event("focus"))')
+    expect(phone.locator('.settings-avatar img')).to_be_visible(timeout=15000)
+    # Signing out and switching accounts in the same browser restores that user's settings.
+    laptop.locator('[data-action="sync-account"]').first.click()
+    laptop.get_by_role('button',name='Sign out on this device',exact=True).click()
+    expect(laptop.locator('#save-status')).to_have_text('Saved in this browser')
+    assert laptop.evaluate('document.documentElement.style.getPropertyValue("--bg")')=='#111827'
+    assert laptop.locator('.settings-avatar img').count()==0
+    laptop.evaluate('(session) => localStorage.setItem("daily-balance-auth",JSON.stringify(session))',session(BOB))
+    laptop.reload();synced(laptop)
+    laptop.locator('[data-nav="settings"]').click()
+    expect(laptop.locator('#color-background-hex')).to_have_value('#111827')
+    assert laptop.locator('.settings-avatar img').count()==0
+    laptop.evaluate('(session) => localStorage.setItem("daily-balance-auth",JSON.stringify(session))',session(ALICE))
+    laptop.reload();synced(laptop)
+    laptop.locator('[data-nav="settings"]').click()
+    expect(laptop.locator('#color-background-hex')).to_have_value('#041809')
+    expect(laptop.locator('.settings-avatar img')).to_be_visible()
     assert not errors,errors
     laptop.screenshot(path='/tmp/caltrack-sync-desktop.png')
     phone.screenshot(path='/tmp/caltrack-sync-mobile.png')
     browser.close()
 server.shutdown()
-print('PASS: edits during an upload, two-device sync, offline edits and restart, concurrent merge, conflict resolution, account isolation, initial upload, sign-out, email login request, sign-in callback, workout targets and completion sync, and mobile layout (mocked Supabase API)')
+print('PASS: two-device and offline journal sync, workout completion, independent color merges, photo sync, account switching and preference isolation, auth flow, conflict resolution, and mobile layout (mocked Supabase API)')

@@ -13,6 +13,8 @@ Use the **Dark mode** switch in the top bar to choose a light or dark theme.
 It follows your device's theme initially and remembers your choice in this browser.
 Use **Sync devices** to sign into your journal on your laptop and phone once
 Supabase is configured. Signed-out use continues to save in this browser.
+Open **Settings** to customize your own light and dark palettes, text sizes,
+spacing, animations and profile photo.
 
 ## 1. Export your existing journal first
 
@@ -40,6 +42,7 @@ extracted folder. Its files should include:
 | `app.js` | Website interactions and browser storage |
 | `core.js` | Food and exercise catalogs, formulas and validation |
 | `theme.js` | Light/dark theme switching and saved preference |
+| `preferences.js`, `appearance.js` | Personal colors, text sizes, layout settings and profile photos |
 | `cloud-sync.js`, `journal-merge.js`, `sync-config.js` | Private account sync and public connection settings |
 | `vendor/` | Locally bundled Supabase browser SDK and licenses |
 | `favicon.svg` | Browser-tab icon |
@@ -148,6 +151,34 @@ When signed in, workout plans and checkboxes sync with the rest of your journal.
 Independent exercise changes merge; conflicting edits to the same exercise ask
 you to choose which journal to keep.
 
+## Make the app your own
+
+Open **Settings** in the side menu. Choose **Light**, **Dark**, or **Follow my
+device**. Each theme keeps five independent colors: background, cards and
+panels, main text, secondary text, and titles and accents. Use each color's red,
+green and blue sliders (0–255), number fields, color picker, or hex field.
+Changes preview immediately and save when you finish the adjustment. Switching
+themes loads that theme's own palette. **Reset light/dark colors** resets only
+the palette currently being edited. The contrast readout can help when choosing
+readable text colors.
+
+Use the four text sliders to size page titles, section headings, main text, and
+secondary text and labels independently. These apply throughout the app,
+including forms and mobile layouts. Small text starts at a more readable 12 px.
+**Reset text sizes** restores the defaults. You can also choose comfortable or
+compact spacing and reduce animation. Device reduced-motion settings continue
+to be respected.
+
+Choose **Upload photo** for a JPEG, PNG or WebP image up to 10 MB. The app makes a
+small centered portrait for your profile; **Remove photo** clears it. Your photo
+is stored with your journal, not in the public repository.
+
+Signed in, these preferences and your photo belong to your account and sync
+between devices. Signing out restores your browser's separate local settings;
+signing into another account loads that account's own appearance. Independent
+settings changes merge during sync. Preferences and photos are also included in
+JSON backups; older backups restore with the default appearance.
+
 ## What is saved, and where?
 
 - The public repository contains website code, generic food values and public
@@ -206,15 +237,17 @@ ZIP and your JSON backups lets you move the tracker to another static host.
 ## Development checks
 
 No build step or dependency installation is required to run the app. With Node.js
-22 or newer, run the workout data checks with:
+22 or newer, run the journal, workout and appearance checks with:
 
 ```sh
-node --test tests/workouts.test.mjs
+node --test tests/*.test.mjs
 ```
 
 These cover backup migration and round trips, calendar boundaries, workout
-suggestions, equipment preferences, validation, and copying without overwriting
-existing sessions.
+suggestions, copying, color validation, independent palettes and text sizes,
+and merging records and preferences between devices. With Python Playwright
+and Chromium installed, `python3 tests/cloud-sync-smoke.py` checks mocked
+two-device sync, photos, offline color edits and account isolation.
 
 ## References
 

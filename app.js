@@ -6,9 +6,11 @@ import {
   WORKOUT_GOALS, WORKOUT_EXPERIENCE, WORKOUT_EQUIPMENT, EXERCISE_PRESETS,
   weekDates, validateWorkoutSettings, validateWorkoutEntry, workoutSuggestion,
   suggestWorkoutWeek, copyWorkoutWeek,
-} from './core.js?v=4';
-import { createJournalSync } from './cloud-sync.js?v=4';
-import { sameJournal } from './journal-merge.js?v=4';
+} from './core.js?v=5';
+import { createJournalSync } from './cloud-sync.js?v=5';
+import { sameJournal } from './journal-merge.js?v=5';
+import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=5';
+import { applyAppearance, prepareProfilePhoto } from './appearance.js?v=5';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -19,6 +21,7 @@ const paths = {
   history: '<path d="M3 11a9 9 0 1 1 2.7 7M3 4v7h7m2-5v6l4 2"/>',
   goals: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
   workout: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M8 2v4m8-4v4m-8 8h2m4 0h2m-8 4h2"/>',
+  settings: '<path d="m9 3-.6 2.2-2 .9L4.3 5.5 2 9.5l1.7 1.6v2L2 14.7l2.3 4 2.1-.6 2 .9L9 21h6l.6-2.1 2-.9 2.1.6 2.3-4-1.7-1.5v-2L22 9.5l-2.3-4-2.1.6-2-.9L15 3H9Z"/><circle cx="12" cy="12" r="3"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', close: '<path d="m6 6 12 12M18 6 6 18"/>',
   left: '<path d="m14 6-6 6 6 6"/>', right: '<path d="m10 6 6 6-6 6"/>',
   edit: '<path d="m15 4 5 5M4 20l4-1L20 7a2 2 0 0 0-3-3L5 16l-1 4Z"/>',
@@ -44,14 +47,19 @@ let journalSync;
 let syncView = { phase: 'local', message: '', email: '', signedIn: false };
 try {
   const saved = localStorage.getItem(STORAGE_KEY);
-  state = saved ? validateState(JSON.parse(saved)) : createInitialState();
+  const raw=saved ? JSON.parse(saved) : null;
+  state = raw ? validateState(raw) : createInitialState();
+  if (!raw?.preferences) {
+    const oldTheme=localStorage.getItem('daily-balance-theme');
+    if (['light','dark'].includes(oldTheme))state.preferences.theme=oldTheme;
+  }
 } catch (error) {
   state = createInitialState();
   loadError = 'Your saved data could not be read. Restore a backup before adding new records if you need to recover it.';
 }
 needsSetup = state.profileReady === false;
 const returningFromSignIn = /(?:access_token|refresh_token|error_description)=/.test(location.hash);
-if (needsSetup && !returningFromSignIn) location.hash = 'goals';
+if (needsSetup && !returningFromSignIn && location.hash !== '#settings') location.hash = 'goals';
 let selectedDate = todayKey();
 let workoutDate = todayKey();
 let route = location.hash.slice(1) || 'today';
@@ -169,7 +177,7 @@ function renderToday() {
     + (!isToday ? `<div class="notice">${icon('history')}You’re viewing ${dateText(selectedDate,{year:'numeric'})}. <button class="text-button" data-action="today">Back to today</button></div>` : '')
     + `<section class="card summary-card" aria-label="Daily calorie and macro progress"><div id="summary-live">${summaryContent(g,t)}</div><div class="budget-row"><div class="budget-label"><strong>My daily calorie budget</strong><span>Adjust it and see your targets update</span></div><div class="budget-slider"><span>1,200</span><input id="budget-slider" type="range" min="1200" max="${Math.max(2200,Math.ceil(g.kcal/100)*100)}" step="25" value="${g.kcal}" aria-label="Daily calorie budget"><span>${num(Math.max(2200,Math.ceil(g.kcal/100)*100))}</span></div><div class="budget-value"><input id="budget-number" type="number" min="1200" max="4000" step="25" value="${g.kcal}" aria-label="Daily calorie budget in kilocalories"><span>kcal</span></div></div></section>
     <div class="daily-grid"><section class="card"><div class="card-head"><div><h2>${isToday ? 'Today’s' : 'Your'} food journal</h2><p>Every portion, in one place.</p></div><span class="badge">${day.entries.length} ${day.entries.length===1 ? 'entry' : 'entries'}</span></div>
-    ${day.entries.length ? renderLog(day.entries) : empty('A fresh page.','Add a usual food or save a new one to start this day.',addButton())}
+    ${day.entries.length ? `<div class="log-table-scroll" role="region" aria-label="Food journal entries" tabindex="0">${renderLog(day.entries)}</div>` : empty('A fresh page.','Add a usual food or save a new one to start this day.',addButton())}
     ${day.note ? `<p class="log-note">${esc(day.note)}</p>` : ''}
     ${day.entries.length ? `<div class="log-totals"><span>Daily total <strong>${num(t.kcal)} kcal</strong></span><span>P <strong>${num(t.protein,1)} g</strong></span><span>C <strong>${num(t.carbs,1)} g</strong></span><span>F <strong>${num(t.fat,1)} g</strong></span></div>` : ''}
     <div class="log-footer"><button class="btn secondary small" data-action="pick-food">${icon('plus')} Add another food</button><button class="text-button" data-action="copy-day">Copy another day</button></div></section>
@@ -320,18 +328,82 @@ function showWorkoutEditor(exerciseId, entry = null) {
       <div class="form-error" id="workout-error" role="alert"></div><div class="dialog-footer"><button class="btn secondary" type="button" data-action="close-dialog">Cancel</button><button class="btn primary" type="submit">${icon('check')} ${entry ? 'Save changes' : 'Add exercise'}</button></div></form>`);
 }
 
+function avatarMarkup(large=false) {
+  const initials=state.profile.name.trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase() || 'DB';
+  return state.preferences.avatar ? `<img src="${esc(state.preferences.avatar)}" alt="${large ? 'Your profile photo' : ''}">` : esc(initials);
+}
+function colorSetting(role,label,description,palette) {
+  const channels=colorRGB(palette[role]);
+  return `<section class="color-setting" data-palette-role="${role}"><div class="color-setting-head"><div><h3>${label}</h3><p>${description}</p></div><input type="color" data-color-picker="${role}" value="${palette[role]}" aria-label="${label} color"></div><div class="hex-field"><label for="color-${role}-hex">HEX</label><input id="color-${role}-hex" data-color-hex="${role}" value="${palette[role]}" maxlength="7" pattern="#[a-fA-F0-9]{6}" aria-label="${label} hex color"></div><div class="rgb-sliders">${['Red','Green','Blue'].map((channel,i)=>`<div class="rgb-channel"><label for="color-${role}-${i}">${channel}</label><input type="range" id="color-${role}-${i}" min="0" max="255" step="1" value="${channels[i]}" data-rgb-role="${role}" data-rgb-channel="${i}" aria-label="${label} ${channel.toLowerCase()}"><input type="number" min="0" max="255" step="1" value="${channels[i]}" data-rgb-role="${role}" data-rgb-channel="${i}" aria-label="${label} ${channel.toLowerCase()} value"></div>`).join('')}</div></section>`;
+}
+function renderSettings() {
+  const p=state.preferences,theme=document.documentElement.dataset.theme,palette=p.palettes[theme];
+  $('#main').innerHTML=heading('Make this space yours.','Your colors, your text sizes, and a little more comfort.','','YOUR PERSONAL SETTINGS')
+    + `<section class="card settings-profile"><div class="settings-avatar">${avatarMarkup(true)}</div><div class="settings-profile-copy"><h2>${esc(state.profile.name)}</h2><p>${syncView.signedIn ? 'Your settings and photo sync with your private account.' : 'Saved in this browser. Sign in to take your settings to other devices.'}</p><div class="settings-photo-actions"><button class="btn secondary small" data-action="upload-avatar">Upload photo</button><button class="text-button" data-action="remove-avatar" ${p.avatar ? '' : 'disabled'}>Remove photo</button><a class="text-button" href="#goals">Edit profile</a></div><small>JPEG, PNG or WebP · up to 10 MB. Photos are shown as a centered circle.</small><input type="file" id="avatar-file" accept="image/jpeg,image/png,image/webp" hidden><div class="form-error" id="avatar-error" role="alert"></div></div><button class="btn secondary small" data-action="sync-account">${syncView.signedIn ? 'My account' : 'Sync devices'}</button></section>
+    <form id="settings-form" class="settings-grid"><section class="card settings-panel"><div class="settings-section-heading"><div><h2>Your ${theme} palette.</h2><p>Each theme keeps its own five colors. Changes preview immediately and save when you finish adjusting.</p></div><span class="palette-mode">${icon(theme==='dark' ? 'star' : 'leaf')} ${theme==='dark' ? 'Dark' : 'Light'}</span></div>
+      ${selectField('Appearance mode','appearance-mode',[['system','Follow my device'],['light','Light · my palette'],['dark','Dark · my palette']],p.theme)}
+      <div class="color-controls">${PALETTE_ROLES.map(([role,label,description])=>colorSetting(role,label,description,palette)).join('')}</div><div class="settings-panel-footer"><p id="palette-contrast" role="status"></p><button class="btn secondary small" type="button" data-action="reset-palette">Reset ${theme} colors</button></div><div class="form-error" id="appearance-error" role="alert"></div></section>
+      <div class="settings-aside"><section class="card settings-panel"><div class="settings-section-heading"><div><h2>Text that works for you.</h2><p>Adjust each kind of text independently, throughout the app.</p></div></div><div class="typography-controls">${TEXT_ROLES.map(([role,label,min,max])=>`<div class="text-size-control"><div><label for="text-size-${role}">${label}</label><output id="text-size-${role}-value">${p.typography[role]} px</output></div><input id="text-size-${role}" type="range" min="${min}" max="${max}" step="1" value="${p.typography[role]}" data-text-size="${role}" aria-label="${label} size"></div>`).join('')}</div><button class="text-button" type="button" data-action="reset-typography">Reset text sizes</button></section>
+      <section class="card settings-panel settings-preview" aria-label="Appearance preview"><span class="small-label">LIVE PREVIEW</span><h2 class="preview-title">Your daily balance.</h2><h3>Today’s workout</h3><p class="preview-body">Squat · 3 sets × 10 reps</p><p class="preview-subtext">Your labels and supporting details.</p><span class="preview-accent">Your accent color</span></section>
+      <section class="card settings-panel"><div class="settings-section-heading"><div><h2>A little more comfort.</h2></div></div>${selectField('Layout spacing','appearance-density',[['comfortable','Comfortable · more room'],['compact','Compact · closer together']],p.density)}<label class="settings-toggle"><input id="appearance-motion" type="checkbox" ${p.reduceMotion ? 'checked' : ''}><span><strong>Reduce motion</strong><small>Use fewer animations and instant transitions. Your device’s reduced-motion preference is also respected.</small></span></label></section>
+      <section class="card settings-panel"><h2>Your settings travel with you.</h2><p class="settings-description">Colors, text sizes, spacing and your profile photo are included in backups and sync with your account when you sign in.</p><div class="backup-buttons"><button class="btn secondary small" type="button" data-action="backup">${icon('download')} Export backup</button><a class="btn secondary small" href="#goals">Restore backup</a></div></section></div></form>`;
+  for(const [role] of PALETTE_ROLES)updateColorControls(role);
+}
+function updatePaletteContrast() {
+  if (!$('#palette-contrast'))return;
+  const palette=state.preferences.palettes[document.documentElement.dataset.theme];
+  const main=contrastRatio(palette.text,palette.surface),secondary=contrastRatio(palette.subtext,palette.surface);
+  $('#palette-contrast').textContent=`Text contrast: ${main.toFixed(1)}:1 · Secondary: ${secondary.toFixed(1)}:1${Math.min(main,secondary)<4.5 ? ' · Increasing contrast can make small text easier to read.' : ''}`;
+}
+function updateColorControls(role) {
+  const section=$(`[data-palette-role="${role}"]`);
+  if (!section)return;
+  const value=state.preferences.palettes[document.documentElement.dataset.theme][role],rgb=colorRGB(value);
+  section.querySelector('[data-color-picker]').value=value;
+  section.querySelector('[data-color-hex]').value=value;
+  for (const input of section.querySelectorAll('[data-rgb-channel]')) {
+    const channel=Number(input.dataset.rgbChannel);input.value=rgb[channel];
+    if(input.type==='range') {
+      const from=[...rgb],to=[...rgb];from[channel]=0;to[channel]=255;
+      input.style.setProperty('--rgb-track',`linear-gradient(to right,${colorHex(from)},${colorHex(to)})`);
+    }
+  }
+  updatePaletteContrast();
+}
+function editAppearanceInput(el) {
+  const palette=state.preferences.palettes[document.documentElement.dataset.theme];
+  if (el.dataset.rgbRole) {
+    const value=Number(el.value);
+    if (el.value==='' || !Number.isInteger(value) || value<0 || value>255)return false;
+    const channels=colorRGB(palette[el.dataset.rgbRole]);channels[Number(el.dataset.rgbChannel)]=value;
+    palette[el.dataset.rgbRole]=colorHex(channels);updateColorControls(el.dataset.rgbRole);
+  } else if (el.dataset.colorPicker || el.dataset.colorHex) {
+    const role=el.dataset.colorPicker || el.dataset.colorHex;
+    if (!/^#[\da-f]{6}$/i.test(el.value))return false;
+    palette[role]=validateHex(el.value);updateColorControls(role);
+  } else if (el.dataset.textSize) {
+    state.preferences.typography[el.dataset.textSize]=Number(el.value);
+    $(`#text-size-${el.dataset.textSize}-value`).textContent=`${el.value} px`;
+  } else return false;
+  applyAppearance(state.preferences);
+  $('#appearance-error')?.classList.remove('visible');
+  return true;
+}
+
 function render() {
-  if (!['today','foods','history','goals','workouts'].includes(route)) route='today';
+  if (!['today','foods','history','goals','workouts','settings'].includes(route)) route='today';
+  applyAppearance(state.preferences);
   for (const a of document.querySelectorAll('[data-nav]')) {
     const active = a.dataset.nav===route;
     a.classList.toggle('active',active);
     if (active) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current');
   }
-  $('#page-label').textContent = {today:'Daily intake',foods:'My foods',history:'History',goals:'Profile & goals',workouts:'Workouts'}[route];
+  $('#page-label').textContent = {today:'Daily intake',foods:'My foods',history:'History',goals:'Profile & goals',workouts:'Workouts',settings:'Settings'}[route];
   $('#sidebar-name').textContent = state.profile.name;
+  $('#profile-avatar').innerHTML=avatarMarkup();
   $('#food-count').textContent = state.foods.length;
-  ({today:renderToday,foods:renderFoods,history:renderHistory,goals:renderGoals,workouts:renderWorkouts}[route])();
-  if (needsSetup) $('#main').insertAdjacentHTML('afterbegin', '<div class="notice">'+icon('info')+'<span>Welcome. The measurements below are placeholders. Set your own profile and save it, or use <strong>Restore backup</strong> below to bring over your existing settings and food journal.</span></div>');
+  ({today:renderToday,foods:renderFoods,history:renderHistory,goals:renderGoals,workouts:renderWorkouts,settings:renderSettings}[route])();
+  if (needsSetup && route!=='settings') $('#main').insertAdjacentHTML('afterbegin', '<div class="notice">'+icon('info')+'<span>Welcome. The measurements below are placeholders. Set your own profile and save it, or use <strong>Restore backup</strong> below to bring over your existing settings and food journal.</span></div>');
   updateSaveStatus();
 }
 
@@ -402,6 +474,18 @@ document.addEventListener('click',event=>{
   const {action,id,date}=button.dataset;
   if(needsSetup&&['pick-food','food-portion','add-suggestion','copy-day','log-weight','pick-exercise','choose-exercise','suggest-workout-week','copy-workout-week'].includes(action)){location.hash='goals';toast('Save your profile or restore your backup first.');return;}
   try {
+    if(action==='upload-avatar')return $('#avatar-file').click();
+    if(action==='remove-avatar') {
+      state.preferences.avatar='';save();render();toast('Profile photo removed.');return;
+    }
+    if(action==='reset-palette') {
+      const theme=document.documentElement.dataset.theme;
+      state.preferences.palettes[theme]={...DEFAULT_PREFERENCES.palettes[theme]};
+      save();render();toast(`${theme==='dark'?'Dark':'Light'} palette reset.`);return;
+    }
+    if(action==='reset-typography') {
+      state.preferences.typography={...DEFAULT_PREFERENCES.typography};save();render();toast('Text sizes reset.');return;
+    }
     if(action==='sync-account') return showSyncAccount();
     if(action==='sync-upload') { journalSync.uploadLocal();closeDialog();return; }
     if(action==='sync-empty') { journalSync.startEmpty();closeDialog();return; }
@@ -490,6 +574,7 @@ document.addEventListener('click',event=>{
 
 document.addEventListener('input',event=>{
   const el=event.target;
+  if(el.closest('#settings-form'))editAppearanceInput(el);
   if(el.id==='food-search') {
     foodQuery=el.value;const list=filteredFoods();$('#foods-grid').innerHTML=list.map(foodCard).join('');
     $('#foods-empty').innerHTML=list.length?'':empty('No foods found.','Try another search or save a new food.');
@@ -513,6 +598,32 @@ document.addEventListener('input',event=>{
 document.addEventListener('change',async event=>{
   const el=event.target;
   try {
+    if(el.id==='avatar-file') {
+      const file=el.files[0];if(!file)return;
+      const journal=state;el.disabled=true;
+      try {
+        const avatar=await prepareProfilePhoto(file);
+        if(state!==journal)throw new Error('Your journal changed while the photo was opening. Choose it again.');
+        state.preferences=validatePreferences({...state.preferences,avatar});save();render();toast('Your profile photo is saved.');
+      } finally { el.disabled=false;el.value=''; }
+      return;
+    }
+    if(el.id==='appearance-mode') {
+      state.preferences.theme=el.value;state.preferences=validatePreferences(state.preferences);save();render();return;
+    }
+    if(el.id==='appearance-density'||el.id==='appearance-motion') {
+      if(el.id==='appearance-density')state.preferences.density=el.value;
+      else state.preferences.reduceMotion=el.checked;
+      applyAppearance(state.preferences);save();return;
+    }
+    if(el.closest('#settings-form')&&(el.dataset.rgbRole||el.dataset.colorPicker||el.dataset.colorHex||el.dataset.textSize)) {
+      if(!editAppearanceInput(el)) {
+        if(el.dataset.rgbRole)updateColorControls(el.dataset.rgbRole);
+        else if(el.dataset.colorHex)updateColorControls(el.dataset.colorHex);
+        throw new Error(el.dataset.rgbRole?'Enter a whole number from 0 to 255.':'Use a six-digit color such as #a1c4ff.');
+      }
+      state.preferences=validatePreferences(state.preferences);save();return;
+    }
     if(el.id==='workout-date')return setWorkoutDate(el.value);
     if(['workout-goal','workout-experience','workout-equipment'].includes(el.id)) {
       state.workouts.settings=validateWorkoutSettings({goal:$('#workout-goal').value,experience:$('#workout-experience').value,equipment:$('#workout-equipment').value});
@@ -550,7 +661,9 @@ document.addEventListener('change',async event=>{
     }
     if(el.closest('#profile-form')) $('#calc-preview').innerHTML=renderCalculations(readProfileForm());
   } catch(error) {
-    if(el.closest('#profile-form'))showError('#profile-error',error);else toast(error.message,true);
+    if(el.id==='avatar-file'&&$('#avatar-error'))showError('#avatar-error',error);
+    else if(el.closest('#settings-form'))showError('#appearance-error',error);
+    else if(el.closest('#profile-form'))showError('#profile-error',error);else toast(error.message,true);
   }
 });
 
@@ -558,6 +671,7 @@ document.addEventListener('submit',async event=>{
   event.preventDefault();
   const form=event.target;
   try {
+    if(form.id==='settings-form') {state.preferences=validatePreferences(state.preferences);save();toast('Settings saved.');return;}
     if(form.id==='sync-signin-form') {
       const button=form.querySelector('button[type=submit]');
       button.disabled=true;
@@ -628,6 +742,12 @@ document.addEventListener('submit',async event=>{
   }
 });
 
+window.addEventListener('appearance-theme-change',event=>{
+  state.preferences.theme=event.detail.preference;
+  applyAppearance(state.preferences);
+  if(event.detail.userInitiated)save();
+  if(route==='settings')renderSettings();
+});
 window.addEventListener('hashchange',()=>{route=location.hash.slice(1)||'today';render();});
 window.addEventListener('storage',event=>{
   if(event.key!==STORAGE_KEY||!event.newValue||journalSync?.isSignedIn())return;
@@ -652,6 +772,7 @@ journalSync = createJournalSync({
   statusChanged(view) {
     const previous=syncView;
     syncView=view;updateSaveStatus();
+    if(route==='settings'&&previous.signedIn!==view.signedIn&&!$('#dialog').open)renderSettings();
     if (['choose','conflict'].includes(view.phase) && previous.phase!==view.phase) showSyncAccount();
     else if ($('#sync-account-body')) {
       if (!view.signedIn) showSyncAccount();

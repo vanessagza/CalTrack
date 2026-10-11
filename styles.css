@@ -159,3 +159,155 @@
   .workout-exercise .icon-btn{width:27px;height:29px}
   .workout-guide{padding:22px 19px}
 }
+
+/* Personal palettes share five roles across every dashboard and dialog. */
+html[data-appearance] :is(.sidebar,.topbar,.sidebar-note,.btn.secondary,.icon-btn,.date-control,.budget-value input,.suggestion,.search input,.filter-pill,dialog,.pick-food,.noscript){background:var(--paper)}
+html[data-appearance] :is(.budget-row,.log-header,.weight-chart,.log-totals,.dialog-food-details,.calc-result,.form-preview,.next-card){background:var(--surface-soft);border-color:var(--line)}
+html[data-appearance] :is(.sidebar nav a:hover,.btn.secondary:hover,.icon-btn:hover,.pick-food:hover,.equation code,.portion-presets button,.suggestion .icon-btn){background:var(--green-light)}
+html[data-appearance] :is(.workspace-label,.sidebar nav a,.sidebar-note p,.breadcrumb,.btn.secondary,.icon-btn,.date-control input,.macro-values span,.log-header,.meal-label,.food-detail,.log-amount,.log-note,.next-card .small-label,.next-card>p,.next-note,.goal-caption,.field label,.field>span,.calc-result span,footer,footer span,.secondary-note,.filter-pill){color:var(--muted)}
+html[data-appearance] :is(.sidebar nav a.active,.filter-pill.active){color:var(--accent-ink);background:var(--green)}
+html[data-appearance] .sidebar nav a.active{color:var(--accent-ink);background:var(--green)}
+html[data-appearance] :is(.btn.primary,.skip-link,.toast,.brand-mark){background:var(--green);color:var(--accent-ink)}
+html[data-appearance] .btn.primary:hover{background:var(--green);filter:brightness(.92)}
+html[data-appearance] :is(.nav-count,.avatar,.badge,.tiny-pill,.label-tag,.notice,.formula-badge,.food-tile){background:var(--green-light);color:var(--green);border-color:var(--line)}
+html[data-appearance] .next-card{border-color:var(--line)}
+html[data-appearance] :is(.field input,.field select,.field textarea){background:var(--paper);border-color:var(--line);color:var(--ink)}
+html[data-appearance] :is(.breadcrumb strong,.budget-label strong,.budget-value,.macro-values,.food-title,.row-kcal,.suggestion strong,.history-day strong,.equation strong,.protein-color,.carbs-color,.fat-color){color:var(--ink)}
+html[data-appearance] :is(h1,h2,h3){color:var(--title-color)}
+html[data-appearance] .ring .track{stroke:var(--line)}
+html[data-appearance] .toast-undo{color:var(--accent-ink)}
+html[data-appearance] .toast.error{background:#814632;color:white}
+html[data-appearance] .field small{color:var(--muted)}
+html[data-appearance] :is(button,a,input,select,textarea):focus-visible{outline-color:var(--green)}
+.avatar img,.settings-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.avatar{overflow:hidden;flex-shrink:0}
+
+/* Independent text roles replace the old fixed sizes, including mobile labels. */
+html[data-appearance] body{font-size:var(--body-size)}
+html[data-appearance] .page-heading h1,html[data-appearance] .preview-title{font-size:var(--title-size)}
+html[data-appearance] :is(.card-head h2,.form-section h2,.backup-panel h2,.empty-state h3,.food-card h3,.next-card h2,.calc-panel h2,.dialog-heading h2,.workout-week-heading h2,.workout-guide h2,.settings-panel h2,.settings-profile h2){font-size:var(--heading-size)}
+html[data-appearance] :is(.btn,.food-title,.pick-food strong,.field input,.field select,.field textarea,.search input,.suggestion strong,.history-day strong,.person strong,.macro-title,.food-row,.row-kcal,.log-amount,.budget-label strong,.equation strong,.equation code,.workout-check strong,.preview-body,.settings-toggle strong){font-size:var(--body-size)}
+html[data-appearance] :is(.brand small,.workspace-label,.sidebar nav a,.nav-count,.small-label,.person small,.breadcrumb,.save-state,.eyebrow,.heading-sub,.btn.small,.date-control input,.ring-center small,.ring-center .ring-label,.calorie-copy p,.tiny-pill,.macro-values,.macro-bottom,.budget-label span,.budget-slider,.budget-value,.card-head p,.badge,.text-button,.log-header,.meal-label,.food-detail,.log-note,.next-card>p,.suggestion small,.next-note,.weight-glance small,.goal-caption,.empty-state p,.filter-pill,.food-card-sub,.food-card-numbers small,.label-tag,.subtle-note,.stat-card p,.history-day small,.history-progress small,.weight-table,.field label,.field>span,.field small,.form-error,.calc-panel>p,.calc-result span,.calc-result small,.equation p,.source-links,.backup-panel p,.formula-badge,.form-preview small,.notice,footer,.dialog-heading p,.pick-food small,.pick-kcal,.dialog-food-details,.portion-presets button,.toast,.toast-undo,.target-summary,.log-totals,.secondary-note,.history-summary,.theme-toggle,.workout-day>span:first-child,.workout-day small,.workout-week-summary,.workout-session input[type="date"],.workout-check small,.workout-exercise-meta,.workout-guide p,.workout-rationale summary,.workout-rationale a,.workout-energy span,.workout-progression strong,.workout-progression p,.workout-progression small,.preview-subtext){font-size:var(--subtext-size)}
+html[data-appearance] .ring-center strong{font-size:calc(29px * var(--body-scale))}
+html[data-appearance] .remaining-number{font-size:calc(29px * var(--body-scale))}
+html[data-appearance] :is(.stat-card strong,.calc-result strong){font-size:calc(26px * var(--body-scale))}
+html[data-appearance] :is(.weight-glance strong,.workout-day strong){font-size:calc(21px * var(--body-scale))}
+html[data-appearance] :is(.food-card-numbers strong,.form-preview strong,.workout-energy strong){font-size:calc(16px * var(--body-scale))}
+html[data-appearance] .brand{font-size:clamp(18px,calc(var(--body-size)*1.5),24px)}
+html[data-appearance] .sidebar nav a{white-space:normal;overflow-wrap:anywhere}
+html[data-appearance] .brand small{font-size:10px}
+html[data-appearance] .settings-preview .preview-title{font-size:var(--title-size)}
+html[data-appearance] .weight-glance strong span{font-size:var(--subtext-size)!important}
+html[data-appearance] .weight-chart text{font-size:var(--subtext-size);fill:var(--muted)}
+html[data-appearance] .weight-chart polyline{stroke:var(--green)}
+html[data-appearance] .weight-chart circle{fill:var(--green)}
+.sidebar .nav-icon{flex-shrink:0}
+.workout-week-heading,.page-heading,.heading-actions{flex-wrap:wrap}
+.workout-day small{white-space:normal}
+.workout-week-summary progress{flex-shrink:0}
+.workout-check strong{line-height:1.5}
+.food-card-top,.log-footer,.macro-top,.target-summary,.history-row{flex-wrap:wrap}
+.food-card-actions{flex-wrap:wrap}
+.food-card-actions .btn{white-space:normal}
+.topbar{height:auto;min-height:74px;flex-wrap:wrap;gap:12px;padding-block:14px}
+.topbar-actions{min-width:0;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
+.breadcrumb{min-width:0;flex-wrap:wrap}
+.form-actions{flex-wrap:wrap}
+.profile-form,.calc-panel,.food-card,.history-grid>*,.profile-layout>*{min-width:0}
+.daily-grid>section,.daily-grid>aside{min-width:0}
+.form-grid,.calc-pair{grid-template-columns:repeat(2,minmax(0,1fr))}
+.food-card h3,.food-card-sub,.food-card-numbers small,.field label,.field small{overflow-wrap:anywhere}
+.log-table-scroll{overflow-x:auto}
+.log-header,.food-row{min-width:600px;grid-template-columns:minmax(170px,1fr) repeat(3,70px) 80px 70px}
+.food-title{overflow-wrap:anywhere}
+.sidebar{overflow-y:auto}
+html[data-reduce-motion="true"]{scroll-behavior:auto}
+html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html[data-reduce-motion="true"] *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+html[data-density="compact"] :is(.workout-exercise,.history-row){padding-block:12px}
+html[data-density="compact"] :is(.card-head,.profile-form,.calc-panel,.backup-panel,.settings-panel){padding:18px}
+
+.settings-profile{padding:24px;display:flex;align-items:center;gap:22px;margin-bottom:24px}
+.settings-avatar{width:88px;height:88px;border-radius:50%;flex-shrink:0;background:var(--green-light);color:var(--green);display:grid;place-items:center;font:28px Georgia,serif;overflow:hidden}
+.settings-profile-copy{flex:1;min-width:0}
+.settings-profile h2{font-weight:550;margin:0 0 5px}
+.settings-profile p{font-size:var(--subtext-size);color:var(--muted);margin:0 0 12px}
+.settings-profile small{font-size:var(--subtext-size);color:var(--muted);display:block;margin-top:12px;line-height:1.7}
+.settings-photo-actions{display:flex;align-items:center;gap:13px;flex-wrap:wrap}
+.settings-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(280px,1fr);gap:24px;align-items:start}
+.settings-panel{padding:24px;min-width:0}
+.settings-section-heading{display:flex;align-items:flex-start;gap:15px;justify-content:space-between;margin-bottom:20px}
+.settings-panel h2{font-weight:550;margin:0 0 10px;line-height:1.3}
+.settings-section-heading p,.settings-description{font-size:var(--subtext-size);color:var(--muted);line-height:1.8;margin:0}
+.palette-mode{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;font-size:var(--subtext-size);background:var(--green-light);color:var(--green);padding:5px 9px;border-radius:7px}
+.palette-mode svg{width:14px;height:14px}
+.color-controls{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px}
+.color-setting{padding:16px;border:1px solid var(--line);border-radius:13px;min-width:0;background:var(--surface-soft)}
+.color-setting:last-child{grid-column:1/-1}
+.color-setting-head{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}
+.color-setting-head>div{flex:1;min-width:0}
+.color-setting h3{font-size:var(--body-size);font-weight:550;margin:0 0 5px;color:var(--ink)}
+.color-setting p{font-size:var(--subtext-size);line-height:1.6;color:var(--muted);margin:0}
+.color-setting input[type="color"]{width:36px;height:36px;border:1px solid var(--line);border-radius:9px;padding:3px;background:var(--paper);cursor:pointer;flex-shrink:0}
+.hex-field{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.hex-field label{font-size:var(--subtext-size);color:var(--muted)}
+.hex-field input{background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:5px 8px;width:100%;min-width:0;font:var(--subtext-size) ui-monospace,monospace}
+.rgb-sliders{display:grid;gap:10px}
+.rgb-channel{display:grid;grid-template-columns:max(42px,calc(var(--subtext-size)*3)) minmax(0,1fr) max(48px,calc(var(--subtext-size)*3.5));gap:9px;align-items:center}
+.rgb-channel label{font-size:var(--subtext-size);color:var(--muted);overflow-wrap:anywhere}
+.rgb-channel input[type="number"]{border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);width:100%;min-width:0;font-size:var(--subtext-size);padding:4px}
+.rgb-channel input[type="range"],.text-size-control input{width:100%;min-width:0;accent-color:var(--green);cursor:pointer;margin:0;min-height:24px}
+.rgb-channel input[type="range"]{appearance:none;background:transparent}
+.rgb-channel input[type="range"]::-webkit-slider-runnable-track{height:7px;background:var(--rgb-track);border-radius:8px;border:1px solid var(--line)}
+.rgb-channel input[type="range"]::-webkit-slider-thumb{appearance:none;width:17px;height:17px;margin-top:-6px;background:var(--paper);border:2px solid var(--green);border-radius:50%}
+.rgb-channel input[type="range"]::-moz-range-track{height:7px;background:var(--rgb-track);border-radius:8px;border:1px solid var(--line)}
+.rgb-channel input[type="range"]::-moz-range-thumb{width:13px;height:13px;background:var(--paper);border:2px solid var(--green);border-radius:50%}
+.settings-panel-footer{border-top:1px solid var(--line);margin-top:20px;padding-top:16px;display:flex;align-items:center;gap:15px;flex-wrap:wrap;justify-content:space-between}
+.settings-panel-footer p{font-size:var(--subtext-size);color:var(--muted);line-height:1.8;margin:0;flex:1;min-width:170px}
+.settings-aside{display:grid;gap:20px;min-width:0}
+.typography-controls{display:grid;gap:19px;margin:15px 0 20px}
+.text-size-control>div{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:7px}
+.text-size-control label{font-size:var(--body-size);line-height:1.5}
+.text-size-control output{font-size:var(--subtext-size);color:var(--muted);white-space:nowrap}
+.settings-preview .preview-title{font-family:Georgia,serif;font-weight:400;letter-spacing:-.6px;margin-top:13px}
+.settings-preview h3{font-size:var(--heading-size);font-weight:550;margin:15px 0 7px}
+.settings-preview .preview-body{color:var(--ink);margin:0 0 9px}
+.settings-preview .preview-subtext{color:var(--muted);margin:0 0 18px}
+.preview-accent{display:inline-block;background:var(--green);color:var(--accent-ink);padding:8px 12px;border-radius:8px;font-size:var(--subtext-size)}
+.settings-toggle{display:flex;align-items:flex-start;gap:12px;margin-top:20px;cursor:pointer}
+.settings-toggle input{width:19px;height:19px;flex-shrink:0;margin-top:3px;accent-color:var(--green)}
+.settings-toggle strong{display:block;font-weight:550;line-height:1.5}
+.settings-toggle small{font-size:var(--subtext-size);color:var(--muted);display:block;margin-top:6px;line-height:1.8}
+.settings-description{margin:0 0 16px}
+@media(max-width:1170px){.settings-grid{grid-template-columns:1fr}.settings-aside{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){
+  .sidebar nav{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .sidebar nav a{flex-direction:row;align-items:center;justify-content:center;gap:7px;padding:10px 4px}
+  .brand small{display:none}
+  .topbar{height:auto;min-height:54px;flex-wrap:wrap;gap:10px;padding-block:10px}
+  .topbar-actions{margin-left:auto;flex-wrap:wrap}
+  .summary-main{padding-inline:17px}
+  .ring{flex-shrink:0}
+  .calorie-copy{width:auto;min-width:0}
+  .calorie-area{flex-wrap:wrap}
+  .settings-profile{padding:20px 17px;gap:16px;flex-wrap:wrap}
+  .settings-avatar{width:66px;height:66px}
+  .settings-profile-copy{min-width:180px}
+  .settings-grid{gap:18px}
+  .settings-panel{padding:21px 17px}
+  .settings-aside{grid-template-columns:1fr;gap:18px}
+  .color-controls{grid-template-columns:1fr}
+  .color-setting{padding:16px 14px}
+  .color-setting:last-child{grid-column:auto}
+  .settings-section-heading{flex-wrap:wrap}
+  .color-setting-head input[type="color"]{width:42px;height:42px}
+  .rgb-channel{grid-template-columns:50px minmax(0,1fr) 58px;gap:12px}
+  .workout-session .card-head input[type="date"]{width:auto;max-width:100%}
+  .date-control input{width:128px}
+  .food-card-actions .btn{flex-basis:100%}
+  .foods-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .log-header,.food-row{min-width:430px;grid-template-columns:minmax(170px,1fr) 80px 90px 70px}
+  .workout-week-summary{gap:10px}
+  .history-stats{grid-template-columns:1fr}
+  .person small,.brand small{line-height:1.4}
+}
+@media(max-width:420px){.profile-form .form-grid,.calc-pair{grid-template-columns:1fr}}
