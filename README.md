@@ -6,6 +6,8 @@ database, paid server, npm installation, or application build step.
 
 The 27-food starter catalog, portion editor, calorie and macro progress bars,
 energy formulas, daily history, weight journal, and backup/restore are included.
+Use the **Dark mode** switch in the top bar to choose a light or dark theme.
+It follows your device's theme initially and remembers your choice in this browser.
 
 ## 1. Export your existing journal first
 
@@ -32,6 +34,7 @@ extracted folder. Its files should include:
 | `styles.css` | Layout and appearance |
 | `app.js` | Website interactions and browser storage |
 | `core.js` | Food catalog, formulas and validation |
+| `theme.js` | Light/dark theme switching and saved preference |
 | `favicon.svg` | Browser-tab icon |
 | `.nojekyll` | Publishes the files without Jekyll processing |
 | `README.md` | These instructions |
