@@ -43,12 +43,14 @@ Refreshing the SQL editor does not delete the table or save function previously
 created by a successful run. The query text does not have to remain in the editor.
 The setup script is retained in this repository.
 
-If sync times out or the dashboard reports high resource usage, run the two
+If sync times out or the dashboard reports high resource usage, run the three
 read-only checks in [supabase/diagnostics.sql](supabase/diagnostics.sql), one at a
 time. They report whether the table and function exist, total database size, the
-journal table's disk size, and estimated old row versions awaiting cleanup. They
-do not read personal journal contents or change records. Estimates and cleanup
-timestamps help investigation; they do not establish the cause of an outage.
+journal table's disk size, estimated old row versions awaiting cleanup, and
+connection states with active request durations. They do not show query text,
+read personal journal contents or change records. Estimates, cleanup timestamps
+and connection snapshots help investigation; they do not establish the cause of
+an outage.
 
 Copy the exact dashboard usage label too: CPU percentage, database size, disk
 allocation and network transfer are different resources. Built-in exercise SVGs
@@ -58,6 +60,13 @@ stored once in the library rather than copied into every scheduled workout.
 Database updates can leave old row versions until PostgreSQL cleans them up, so
 disk use can exceed the size of current records. Confirm the measurements before
 choosing a cleanup, storage migration or plan change.
+
+A project can be marked **Healthy** while high CPU usage makes database requests
+time out. Refresh the app on every device to load the changes that stop retries
+after a failure. Reloading the SQL editor is separate from restarting the project.
+If the database remains unresponsive, use Supabase's **Restart project** control,
+wait for it to become healthy again, and choose **Retry sync** in the app. Restart
+controls and database usage are managed in Supabase, not by publishing the site.
 
 ## 4. Website integration
 

@@ -1,6 +1,6 @@
 -- Run in Supabase SQL Editor to check the existing setup and storage usage.
 -- These queries only read metadata. They do not change schema or journal data.
--- Run each SELECT separately to view both result sets.
+-- Run each SELECT separately to view all three result sets.
 
 with app as (
   select to_regclass('public.daily_balance_journals') as table_id
@@ -23,3 +23,18 @@ select
   last_vacuum
 from pg_stat_user_tables
 where schemaname = 'public' and relname = 'daily_balance_journals';
+
+-- Connection states and active request durations, without query text or users.
+select
+  state,
+  wait_event_type,
+  wait_event,
+  count(*) as connections,
+  max(now() - query_start) filter (where state = 'active')
+    as longest_active_request
+from pg_stat_activity
+where datname = current_database()
+  and backend_type = 'client backend'
+  and pid <> pg_backend_pid()
+group by state, wait_event_type, wait_event
+order by connections desc;
