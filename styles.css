@@ -311,3 +311,79 @@ html[data-density="compact"] :is(.card-head,.profile-form,.calc-panel,.backup-pa
   .person small,.brand small{line-height:1.4}
 }
 @media(max-width:420px){.profile-form .form-grid,.calc-pair{grid-template-columns:1fr}}
+
+/* Weekly plans keep every exercise and target visible. */
+.workout-config-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.workout-preference-footer{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-top:18px}
+.weekly-repeat{display:flex;align-items:center;gap:10px;font-size:var(--body-size);cursor:pointer}
+.weekly-repeat input{width:18px;height:18px;accent-color:var(--green)}
+.workout-preference-footer p{margin:0;font-size:var(--subtext-size);color:var(--muted);flex:1;min-width:180px}
+.workout-warmup{margin-bottom:22px;align-items:center}
+.workout-plan-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px}
+.workout-plan-actions .btn{white-space:normal}
+.workout-week-board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.workout-week-board.list-view{grid-template-columns:1fr}
+.week-day-card{border:1px solid var(--line);border-radius:14px;overflow:hidden;min-width:0;background:var(--paper)}
+.week-day-card.selected{border-color:var(--green);box-shadow:0 0 0 1px var(--green)}
+.week-day-open{display:block;width:100%;background:var(--surface-soft);color:var(--muted);text-align:left;padding:16px}
+.week-day-open>span{display:flex;align-items:center;justify-content:space-between;font-size:var(--subtext-size)}
+.week-day-open>span strong{font-size:var(--heading-size);color:var(--ink)}
+.week-day-open h3{font-size:var(--body-size);margin:8px 0;line-height:1.5;font-weight:600;overflow-wrap:anywhere}
+.week-day-open small{font-size:var(--subtext-size)}
+.week-exercise-list{list-style:none;margin:0;padding:0 14px}
+.week-exercise-list li{display:flex;align-items:flex-start;gap:7px;padding:13px 0;border-bottom:1px solid var(--line)}
+.week-exercise-list label{display:flex;gap:9px;min-width:0;flex:1;cursor:pointer}
+.week-exercise-list input{width:17px;height:17px;flex-shrink:0;accent-color:var(--green);margin:4px 0 0}
+.week-exercise-list strong{display:block;font-size:var(--body-size);font-weight:550;line-height:1.6;overflow-wrap:anywhere}
+.week-exercise-list small{display:block;color:var(--muted);font-size:var(--subtext-size);line-height:1.8;margin-top:4px}
+.week-exercise-list .text-button{padding:5px 0;flex-shrink:0}
+.week-exercise-list .text-button svg{width:16px;height:16px}
+.week-exercise-list .complete strong{text-decoration:line-through;color:var(--muted)}
+.week-rest,.week-session-note{font-size:var(--subtext-size);color:var(--muted);padding:0 15px;line-height:1.8}
+.week-session-note{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.week-add{display:flex;align-items:center;gap:7px;margin:14px;font-size:var(--subtext-size)}
+.week-add svg{width:15px;height:15px}
+.workout-session .card-head{flex-wrap:wrap;align-items:flex-start}
+.daily-session-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.session-context{padding:0 24px 20px;font-size:var(--body-size);line-height:1.9;color:var(--muted)}
+.session-context p{margin:10px 0 0}
+.session-context strong{color:var(--ink)}
+.workout-detail-list{padding:0 22px}
+.workout-detail{display:block;padding:24px 0;min-width:0}
+.exercise-detail-heading{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.exercise-detail-heading .workout-check{min-width:180px}
+.exercise-detail-actions{display:flex;gap:7px;flex-wrap:wrap}
+.exercise-rest-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 0;font-size:var(--subtext-size);color:var(--muted)}
+.exercise-personal-note{font-size:var(--subtext-size);color:var(--muted);line-height:1.8}
+.exercise-guide-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:22px;align-items:start}
+.exercise-illustration{margin:0;min-width:0}
+.exercise-illustration img{display:block;width:100%;height:auto;max-height:300px;object-fit:contain;background:#f5f8fa;border:1px solid var(--line);border-radius:12px}
+.exercise-illustration figcaption{font-size:var(--subtext-size);color:var(--muted);line-height:1.7;margin-top:9px}
+.exercise-instructions{font-size:var(--body-size);line-height:1.9;overflow-wrap:anywhere}
+.exercise-instructions p{margin:0 0 13px}
+.exercise-muscles{color:var(--green);font-weight:550}
+.workout-save-note{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;margin-top:22px;font-size:var(--subtext-size);color:var(--muted)}
+.rest-timer{display:none;position:fixed;bottom:25px;right:25px;z-index:30;background:var(--green);color:var(--accent-ink);border-radius:13px;padding:16px 20px;gap:25px;box-shadow:var(--shadow)}
+.rest-timer.active{display:flex;align-items:center}
+.rest-timer strong{font-size:var(--heading-size)}
+.rest-timer .text-button{color:var(--accent-ink)}
+.exercise-library-list{max-height:55vh;overflow-y:auto}
+.library-exercise{display:flex;gap:10px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.library-exercise>div{flex:1;min-width:0}
+.library-exercise strong{font-size:var(--body-size);display:block;overflow-wrap:anywhere}
+.library-exercise small{font-size:var(--subtext-size);color:var(--muted)}
+.custom-check input{width:auto!important;margin-right:8px;accent-color:var(--green)}
+#custom-image-preview img{max-width:100%;max-height:180px;object-fit:contain;border-radius:10px}
+dialog .exercise-guide-grid{grid-template-columns:1fr}
+html[data-density="compact"] .workout-detail{padding:16px 0}
+@media(max-width:1150px){.workout-week-board{grid-template-columns:repeat(2,minmax(0,1fr))}.workout-config-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){
+ .workout-config-fields{grid-template-columns:1fr}
+ .workout-week-board{grid-template-columns:1fr;gap:16px}
+ .workout-plan-actions{gap:8px}.workout-plan-actions .btn{flex:1;min-width:125px}
+ .exercise-guide-grid{grid-template-columns:1fr}
+ .workout-detail-list{padding:0 17px}.workout-detail{padding:20px 0}
+ .session-context{padding-inline:17px}.daily-session-actions{gap:7px}
+ .rest-timer{bottom:18px;right:18px;left:18px;justify-content:space-between}
+ .library-exercise{flex-wrap:wrap}
+}

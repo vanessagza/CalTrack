@@ -1,5 +1,5 @@
-import { validateState, validateWorkouts } from './core.js?v=6';
-import { validatePreferences } from './preferences.js?v=6';
+import { validateState, validateWorkouts } from './core.js?v=7';
+import { validatePreferences } from './preferences.js?v=7';
 
 const canonical = value => JSON.stringify(value, function (key, item) {
   return item && typeof item === 'object' && !Array.isArray(item)
@@ -50,6 +50,15 @@ export function mergeJournals(base, local, remote) {
   for (const { date, ...entry } of keyed(...workoutEntries, 'id')) {
     (workoutDays[date] ||= []).push(entry);
   }
+  for(const [date,entries] of Object.entries(workoutDays)) {
+    const orders=workouts.map(w=>(w.days[date]||[]).map(e=>e.id));
+    const common=orders[0].filter(id=>orders[1].includes(id)&&orders[2].includes(id));
+    const shared=orders.map(order=>order.filter(id=>common.includes(id)));
+    const chosen=choice(...shared);
+    const preferred=sameJournal(chosen,shared[1])?orders[1]:orders[2];
+    const rank=new Map(preferred.map((id,index)=>[id,index]));
+    entries.sort((a,b)=>(rank.get(a.id)??Infinity)-(rank.get(b.id)??Infinity));
+  }
   const preferences=[base,local,remote].map(journal=>validatePreferences(journal.preferences));
   const mergedPreferences=fields(...preferences.map(({ palettes,typography,...controls })=>controls));
   // Merge individual controls so unrelated appearance edits on two devices survive.
@@ -63,7 +72,14 @@ export function mergeJournals(base, local, remote) {
     foods: keyed(base.foods, local.foods, remote.foods, 'id', fields),
     weights: keyed(base.weights, local.weights, remote.weights, 'date'),
     days,
-    workouts: { settings:fields(...workouts.map(workout => workout.settings)), days:workoutDays },
+    workouts: { settings:fields(...workouts.map(workout => workout.settings)), days:workoutDays,
+      exercises:keyed(...workouts.map(w=>w.exercises),'id',fields),
+      notes:Object.fromEntries([...new Set(workouts.flatMap(w=>Object.keys(w.notes)))].flatMap(date=>{
+        const note=fields(...workouts.map(w=>w.notes[date]));return note===undefined?[]:[[date,note]];
+      })),
+      skippedWeeks:[...new Set(workouts.flatMap(w=>w.skippedWeeks))].filter(date=>choice(...workouts.map(w=>w.skippedWeeks.includes(date)))),
+      template:choice(...workouts.map(w=>w.template)),
+    },
     preferences:mergedPreferences,
     createdAt: remote.createdAt,
   });

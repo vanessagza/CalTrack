@@ -7,8 +7,9 @@ uses a Supabase account and database; see [Supabase setup](SUPABASE_SETUP.md).
 
 The 27-food starter catalog, portion editor, calorie and macro progress bars,
 energy formulas, daily history, weight journal, and backup/restore are included.
-The **Workouts** section adds a weekly calendar, 22 exercise presets, editable
-sets, reps, weights and notes, and a completion checkbox for every exercise.
+The **Workouts** section adds a calendar listing every exercise, 28 presets,
+personal exercise types, illustrated instructions, editable target ranges and
+rest periods, repeating routines, and completion checkboxes.
 Use the **Dark mode** switch in the top bar to choose a light or dark theme.
 It follows your device's theme initially and remembers your choice in this browser.
 Use **Sync devices** to sign into your journal on your laptop and phone once
@@ -41,6 +42,8 @@ extracted folder. Its files should include:
 | `styles.css` | Layout and appearance |
 | `app.js` | Website interactions and browser storage |
 | `core.js` | Food and exercise catalogs, formulas and validation |
+| `workout-plan.js`, `workout-view.js` | Starter routine, technique instructions and workout dashboard |
+| `assets/exercises/` | Bundled exercise illustrations |
 | `theme.js` | Light/dark theme switching and saved preference |
 | `preferences.js`, `appearance.js` | Personal colors, text sizes, layout settings and profile photos |
 | `cloud-sync.js`, `journal-merge.js`, `sync-config.js` | Private account sync and public connection settings |
@@ -114,27 +117,61 @@ records. Days follow Asia/Tashkent, matching the original tracker.
    **Workouts** in the navigation.
 2. Choose **Training purpose**: muscle preservation, muscle building, increased
    strength, or general fitness. Select your experience and available equipment.
-3. Select a day in the Monday–Sunday calendar and click **Add exercise**. Search
-   the preset list or filter by exercise type and equipment.
-4. Review the suggested sets and reps. Enter your own lifting weight and notes
+3. Every Monday–Sunday card lists its exercises, sets, target ranges and rest
+   without opening it. Check off exercises directly in the week. Select a day
+   for its full goal, notes, written technique and illustrations. Choose week
+   cards or a full-width day list with **Calendar layout**.
+4. Click **Add exercise** on the desired day. Search or filter the preset list.
+   Review the suggested sets and reps, including optional maximums for ranges
+   such as 2 sets of 8–12 reps. Enter rest periods, lifting weight and notes
    if useful, then save. For dumbbells, weight means each dumbbell's weight;
    bodyweight can be recorded as 0 kg. Planks use seconds instead of reps, and
-   unilateral exercises show reps per side.
+   unilateral exercises show targets per side. Walking and mobility use minutes.
 5. Check the exercise's box when you complete it. Use its edit button to adjust
    sets, reps, weight, notes, or scheduled date as your training progresses.
    Moving an exercise to another date resets its completion checkbox.
 
-**Suggest this week** fills empty upcoming session days with a starting routine:
-two full-body sessions for beginners (Monday and Thursday), or three for regular
-trainees (Monday, Wednesday and Friday). It leaves existing sessions in place.
-Rest days remain empty and can also be used for exercises you add yourself.
+With **Muscle preservation**, **Starting out**, and **Dumbbells & bodyweight**,
+the default routine is the supplied glutes, chest and core schedule: resistance
+on Monday, Wednesday and Friday; easy walks on Tuesday, Thursday and Saturday;
+mobility on Tuesday and Saturday; and rest on Sunday. It includes the exact
+sets, rep ranges, rest times, session goals and recovery notes. A five-minute
+warm-up reminder appears above the calendar. **Load glutes & chest starter plan**
+loads the complete seven-day plan after reviewing replacement of the displayed
+week. Other weeks are kept, and Undo is available.
+
+**Suggest this week** fills empty upcoming days with your saved personal routine,
+the preservation starter routine for the matching configuration, or general
+full-body sessions for other configurations: two sessions for beginners (Monday
+and Thursday), or three for regular trainees (Monday, Wednesday and Friday).
+It preserves occupied days and skips past dates. Changing preferences preserves
+existing sessions. The supplied preservation routine keeps its original targets.
+
+Use **Create a new exercise** to save a reusable name, type, equipment, default
+sets and target, target unit (reps/seconds/minutes), rest, per-side option,
+instructions, common mistakes and an optional image. **Exercise library** shows
+all presets and personal exercises, with guides and controls to edit or archive
+your own types. Archiving hides a type from the picker while preserving scheduled
+entries. Uploaded JPEG, PNG and WebP illustrations retain their proportions and
+save privately with the exercise. Built-in guides use bundled schematic images.
+
+Reorder exercises with the up/down controls, edit session titles and goals, and
+start the rest timer from any resistance exercise. **Save week as my routine**
+remembers the displayed week's targets and notes for the current configuration.
+When **Repeat my routine each week** is enabled, opening an empty upcoming week
+fills it with that routine and fresh unchecked boxes. Edited weeks stay intact.
+
+**Clear day**, **Clear week** and **Clear all scheduled workouts** speed up editing
+and offer Undo. Cleared weeks stay empty on return. Clearing all dates asks you
+to confirm the count, retains your library and saved routine, and pauses repeat.
+Use **Suggest this week** to explicitly refill a cleared week.
 
 **Copy plan to next week** carries forward your edited targets and notes, gives
 each copied exercise a fresh unchecked box, and fills only empty upcoming days.
 Use the week arrows or date field to view previous and future weeks. Deleting an
 exercise, suggesting a week, and copying a week offer an **Undo** button.
 
-Suggestions are adjustable starting points. Training purpose, experience and
+General suggestions are adjustable starting points. Training purpose, experience and
 exercise type guide sets and reps. The existing Mifflin–St Jeor estimate uses
 weight, height, age, formula sex and activity to estimate maintenance calories.
 When the saved calorie target is more than 10% below estimated maintenance, the
@@ -144,7 +181,8 @@ food logs are not treated as complete calorie intake. Measurements alone cannot
 predict strength or determine a lifting weight; the planner leaves weight for
 you to choose. Preference and profile updates do not rewrite saved workouts.
 
-Workout settings, dates, targets and completion are included in JSON backups.
+Workout settings, dates, target ranges, rest, session notes, personal exercise
+types and images, saved routines and completion are included in JSON backups.
 Older Daily Balance backups still restore normally and start with an empty
 workout calendar.
 When signed in, workout plans and checkboxes sync with the rest of your journal.
@@ -198,6 +236,11 @@ JSON backups; older backups restore with the default appearance.
   changes can merge; conflicting changes to the same record ask you to choose a
   copy. Export a backup before replacing either copy. Changes made during an
   upload are queued for another save.
+- Account loading pauses editing until the saved journal is available. Pending
+  workout plans are kept in the account cache across reloads before cloud upload
+  completes. The browser also retains a previous local snapshot for recovery if
+  its latest saved JSON cannot be read. A failed browser write shows **Not saved**
+  and asks you to export a backup instead of reporting success.
 - Clearing browser data removes cached journals, pending unsynced changes and
   sign-in sessions. Synced account data can be loaded after signing in again.
   Private browsing may discard its local cache when closed.
@@ -246,8 +289,11 @@ node --test tests/*.test.mjs
 These cover backup migration and round trips, calendar boundaries, workout
 suggestions, copying, color validation, independent palettes and text sizes,
 and merging records and preferences between devices. With Python Playwright
-and Chromium installed, `python3 tests/cloud-sync-smoke.py` checks mocked
-two-device sync, photos, offline color edits and account isolation.
+and Chromium installed, `python3 tests/workout-ui-smoke.py` checks the supplied
+routine, guides, custom exercises/images, repeating and clearing, reloads,
+backup recovery, storage failure and responsive layouts. Run
+`python3 tests/cloud-sync-smoke.py` for mocked two-device sync, delayed account
+loading, pending workout plans across reloads, photos and account isolation.
 
 ## References
 

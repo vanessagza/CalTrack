@@ -21,7 +21,7 @@ test('existing version 1 backups gain an empty planner without losing journal da
   legacy.days['2026-10-12'] = { entries:[newEntry(legacy.foods[0], 2, 'portion', 'Lunch', 'food-entry')], note:'Lunch' };
   legacy.weights = [{ date:'2026-10-12', weight:70 }];
   const restored = validateState(JSON.parse(JSON.stringify(legacy)));
-  assert.deepEqual(restored.workouts, { settings:DEFAULT_WORKOUT_SETTINGS, days:{} });
+  assert.deepEqual(restored.workouts, { settings:DEFAULT_WORKOUT_SETTINGS, days:{},exercises:[],notes:{},skippedWeeks:[],template:null });
   assert.deepEqual(restored.days['2026-10-12'].entries, legacy.days['2026-10-12'].entries);
   assert.deepEqual(restored.weights, legacy.weights);
   assert.deepEqual(restored.profile, legacy.profile);
@@ -29,7 +29,7 @@ test('existing version 1 backups gain an empty planner without losing journal da
 
 test('backup round trip preserves workout preferences, weight, notes and checkboxes', () => {
   const state = createInitialState();
-  state.workouts = { settings:{ ...settings, goal:'build', equipment:'dumbbells' },
+  state.workouts = { ...state.workouts,settings:{ ...settings, goal:'build', equipment:'dumbbells' },
     days:{ '2026-10-12':[entry({ load:12.5, completed:true })] } };
   assert.deepEqual(validateState(JSON.parse(JSON.stringify(state))).workouts, state.workouts);
 });

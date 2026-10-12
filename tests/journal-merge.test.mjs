@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createInitialState, newEntry, validateWorkoutEntry } from '../core.js';
+import { createInitialState, newEntry, validateWorkoutEntry, validateExercise, validateSessionNote, clearWorkoutSchedule } from '../core.js';
 import { mergeJournals, JournalConflict } from '../journal-merge.js';
 const fixture = () => ({ ...createInitialState(), profileReady:true });
 test('offline devices keep both independently logged foods on the same day', () => {
@@ -70,7 +70,7 @@ test('workout deletion and an unrelated addition both survive sync', () => {
 test('conflicting edits or different reschedules of the same exercise require a choice', () => {
   const base=fixture();base.workouts.days['2026-10-12']=[workout('same')];
   const laptop=structuredClone(base),phone=structuredClone(base);
-  laptop.workouts.days['2026-10-12'][0].sets=4;phone.workouts.days['2026-10-12'][0].sets=5;
+  laptop.workouts.days['2026-10-12'][0].sets=laptop.workouts.days['2026-10-12'][0].setsMax=4;phone.workouts.days['2026-10-12'][0].sets=phone.workouts.days['2026-10-12'][0].setsMax=5;
   assert.throws(()=>mergeJournals(base,laptop,phone),JournalConflict);
   laptop.workouts.days={'2026-10-13':[workout('same')]};
   phone.workouts.days={'2026-10-14':[workout('same')]};
@@ -93,4 +93,38 @@ test('legacy account journals merge with newly added workout records', () => {
   assert.equal(merged.workouts.days['2026-10-12'][0].id,'new');
   assert.equal(merged.workouts.settings.goal,'build');
   assert.equal(merged.profile.name,'Updated on phone');
+});
+
+test('reordering exercises survives sync while another device adds an exercise',()=>{
+  const base=fixture();base.workouts.days['2026-10-12']=[workout('one'),workout('two'),workout('three')];
+  const local=structuredClone(base),remote=structuredClone(base);
+  local.workouts.days['2026-10-12'].reverse();
+  remote.workouts.days['2026-10-12'].push(workout('four'));
+  assert.deepEqual(mergeJournals(base,local,remote).workouts.days['2026-10-12'].map(e=>e.id),['three','two','one','four']);
+  assert.deepEqual(mergeJournals(base,remote,local).workouts.days['2026-10-12'].map(e=>e.id),['three','two','one','four']);
+  remote.workouts.days['2026-10-12']=[workout('two'),workout('one'),workout('three')];
+  assert.throws(()=>mergeJournals(base,local,remote),JournalConflict);
+});
+
+test('custom libraries and independent session notes merge with workout changes',()=>{
+  const base=fixture(),local=structuredClone(base),remote=structuredClone(base);
+  const exercise=validateExercise({id:'custom-exercise-a',name:'Step-up',group:'Lower body',equipment:'bodyweight',unit:'reps',instructions:'Use a stable step.'});
+  local.workouts.exercises=[exercise];
+  local.workouts.days['2026-10-12']=[validateWorkoutEntry({id:'custom-scheduled',exerciseId:exercise.id,sets:2,reps:10},[exercise])];
+  remote.workouts.notes['2026-10-12']=validateSessionNote({title:'Leg day',goal:'Build balance'});
+  const merged=mergeJournals(base,local,remote);
+  assert.equal(merged.workouts.exercises[0].instructions,'Use a stable step.');
+  assert.equal(merged.workouts.days['2026-10-12'][0].exercise.name,'Step-up');
+  assert.equal(merged.workouts.notes['2026-10-12'].goal,'Build balance');
+});
+
+test('clearing a week syncs deletions and its repeat suppression without erasing other weeks',()=>{
+  const base=fixture();base.workouts.days={'2026-10-12':[workout('old')],'2026-10-19':[workout('future')]};
+  const local=structuredClone(base),remote=structuredClone(base);
+  local.workouts=clearWorkoutSchedule(local.workouts,'week','2026-10-12');
+  remote.workouts.days['2026-10-19'][0].load=8;
+  const merged=mergeJournals(base,local,remote);
+  assert.ok(!merged.workouts.days['2026-10-12']);
+  assert.equal(merged.workouts.days['2026-10-19'][0].load,8);
+  assert.deepEqual(merged.workouts.skippedWeeks,['2026-10-12']);
 });

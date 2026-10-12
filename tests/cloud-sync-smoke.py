@@ -26,6 +26,9 @@ otp_requests = []
 errors = []
 hold_next_save = False
 held_saves = []
+hold_next_fetch = False
+held_fetches = []
+blocked_accounts = set()
 
 def token(id):
     encode=lambda value:base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip('=')
@@ -39,7 +42,7 @@ def response(route,status,body):
     route.fulfill(status=status,content_type='application/json',body=json.dumps(body))
 
 def api(route):
-    global hold_next_save
+    global hold_next_save,hold_next_fetch
     request=route.request
     path=urlsplit(request.url).path
     bearer=request.headers.get('authorization','').removeprefix('Bearer ')
@@ -50,12 +53,16 @@ def api(route):
             payload=bearer.split('.')[1];payload+='='*((4-len(payload)%4)%4)
             owner=json.loads(base64.urlsafe_b64decode(payload)).get('sub')
         except Exception:pass
+    if owner in blocked_accounts:
+        route.abort('internetdisconnected');return
     if path=='/auth/v1/otp':
         otp_requests.append({'url':request.url,'body':request.post_data_json})
         response(route,200,{})
     elif path=='/auth/v1/user':response(route,200,users[owner])
     elif path=='/auth/v1/logout':response(route,200,{})
     elif path=='/rest/v1/daily_balance_journals':
+        if hold_next_fetch:
+            hold_next_fetch=False;held_fetches.append((route,owner));return
         if owner not in users:response(route,403,{'code':'42501','message':'Sign in required'})
         else:response(route,200,[rows[owner]] if owner in rows else [])
     elif path=='/rest/v1/rpc/save_daily_balance_journal':
@@ -95,6 +102,19 @@ with sync_playwright() as p:
         page.locator('[data-nav="foods"]').click()
         page.locator('[data-action="food-portion"][data-id="'+food+'"]').click()
         page.locator('#portion-form button[type="submit"]').click()
+    # Initial account loading must not allow a guest plan to overwrite the account journal.
+    hold_next_fetch=True
+    loading_ctx,loading=context(ALICE,guest=fixture)
+    loading.locator('[data-nav="workouts"]').click()
+    loading.wait_for_function('document.querySelector("#main").inert')
+    expect(loading.locator('#theme-toggle')).to_be_disabled()
+    loading.evaluate('document.querySelector("[data-action=suggest-workout-week]").click()')
+    assert loading.evaluate('Object.keys(JSON.parse(localStorage.getItem("daily-balance-v1")).workouts.days).length')==0
+    assert held_fetches
+    fetch_route,owner=held_fetches.pop();response(fetch_route,200,[rows[owner]])
+    synced(loading)
+    assert not loading.evaluate('document.querySelector("#main").inert')
+    loading_ctx.close()
     laptop_ctx,laptop=context(ALICE)
     synced(laptop);expect(laptop.locator('#sidebar-name')).to_have_text('Sample Account')
     phone_ctx,phone=context(ALICE,viewport={'width':375,'height':812})
@@ -160,7 +180,7 @@ with sync_playwright() as p:
     assert 'access_token=' not in callback.url
     # Exercise targets and completion must sync, merge and survive reload too.
     laptop.locator('[data-nav="workouts"]').click()
-    laptop.get_by_role('button',name='Add exercise',exact=True).click()
+    laptop.get_by_role('button',name='Add exercise',exact=True).first.click()
     laptop.locator('[data-action="choose-exercise"][data-id="squat"]').click()
     laptop.locator('#exercise-sets').fill('4');laptop.locator('#exercise-reps').fill('12')
     laptop.locator('#exercise-load').fill('0')
@@ -170,14 +190,65 @@ with sync_playwright() as p:
     assert exercise['sets']==4 and exercise['reps']==12 and exercise['load']==0
     phone.locator('[data-nav="workouts"]').click()
     phone.evaluate('window.dispatchEvent(new Event("focus"))')
-    expect(phone.locator('[data-workout-complete]')).to_have_count(1,timeout=15000)
-    phone.locator('[data-workout-complete]').check();synced(phone)
+    expect(phone.locator('.workout-session [data-workout-complete]')).to_have_count(1,timeout=15000)
+    phone.locator('.workout-session [data-workout-complete]').check();synced(phone)
     assert rows[ALICE]['journal']['workouts']['days'][workout_day][0]['completed']
     laptop.evaluate('window.dispatchEvent(new Event("focus"))')
-    expect(laptop.locator('[data-workout-complete]')).to_be_checked(timeout=15000)
+    expect(laptop.locator('.workout-session [data-workout-complete]')).to_be_checked(timeout=15000)
     laptop.reload();synced(laptop)
     laptop.locator('[data-nav="workouts"]').click()
-    expect(laptop.locator('[data-workout-complete]')).to_be_checked()
+    expect(laptop.locator('.workout-session [data-workout-complete]')).to_be_checked()
+    # Reloading a suggested week before upload acknowledgement keeps the dirty local journal.
+    laptop.get_by_role('button',name='Next workout week',exact=True).click()
+    future_day=laptop.locator('#workout-date').input_value()
+    hold_next_save=True
+    laptop.get_by_role('button',name='Load glutes & chest starter plan',exact=True).click()
+    laptop.locator('[data-action="confirm-starter-routine"]').click()
+    for _ in range(50):
+        if held_saves:break
+        laptop.wait_for_timeout(100)
+    assert held_saves
+    account_key='daily-balance-account-'+ALICE
+    cached=laptop.evaluate('(key)=>JSON.parse(localStorage.getItem(key))',account_key)
+    assert cached['dirty'] and len([e for day in cached['journal']['workouts']['days'].values() for e in day])==23
+    blocked_accounts.add(ALICE)
+    save_route,owner,data=held_saves.pop();save_route.abort('internetdisconnected')
+    laptop.reload()
+    expect(laptop.locator('#save-status')).to_have_text('Saved here · offline',timeout=15000)
+    laptop.locator('#workout-date').fill(future_day)
+    expect(laptop.locator('.week-exercise-list li')).to_have_count(22)
+    blocked_accounts.remove(ALICE)
+    laptop.evaluate('window.dispatchEvent(new Event("focus"))');synced(laptop)
+    assert len([e for day in rows[ALICE]['journal']['workouts']['days'].values() for e in day])==23
+    laptop.get_by_role('button',name='Clear week',exact=True).click();synced(laptop)
+    laptop.reload();synced(laptop)
+    laptop.locator('#workout-date').fill(future_day)
+    expect(laptop.locator('.week-exercise-list li')).to_have_count(0)
+    # A malformed latest cache falls back to the preceding valid local snapshot.
+    laptop.evaluate('(key)=>{localStorage.setItem(key+"-recovery",localStorage.getItem(key));localStorage.setItem(key,"broken");}',account_key)
+    blocked_accounts.add(ALICE);laptop.reload()
+    expect(laptop.locator('#save-status')).to_have_text('Saved here · offline',timeout=15000)
+    laptop.locator('#workout-date').fill(future_day)
+    expect(laptop.locator('.week-exercise-list li')).to_have_count(0)
+    blocked_accounts.remove(ALICE)
+    laptop.evaluate('window.dispatchEvent(new Event("focus"))');synced(laptop)
+    # Personal exercise types, instructions, timed targets and completion travel with the account.
+    laptop.locator('.workout-session [data-action="new-exercise"]').click()
+    laptop.locator('#custom-name').fill('Reach and hold')
+    laptop.locator('#custom-unit').select_option('seconds')
+    laptop.locator('#custom-reps').fill('45')
+    laptop.locator('#custom-instructions').fill('Reach gently and hold while breathing normally.')
+    laptop.get_by_role('button',name='Save exercise type',exact=True).click();synced(laptop)
+    custom_id=rows[ALICE]['journal']['workouts']['exercises'][0]['id']
+    laptop.locator('#workout-date').fill(workout_day)
+    laptop.locator('.workout-session [data-action="pick-exercise"]').click()
+    laptop.locator('[data-action="choose-exercise"][data-id="'+custom_id+'"]').click()
+    laptop.locator('#workout-form button[type="submit"]').click()
+    laptop.get_by_label('Mark Reach and hold complete',exact=True).check();synced(laptop)
+    assert rows[ALICE]['journal']['workouts']['days'][workout_day][-1]['reps']==45
+    phone.evaluate('window.dispatchEvent(new Event("focus"))')
+    expect(phone.get_by_label('Mark Reach and hold complete',exact=True)).to_be_checked(timeout=15000)
+    expect(phone.locator('.workout-detail').last).to_contain_text('hold while breathing normally')
     # Appearance settings belong to the account and merge individual controls.
     laptop.locator('[data-nav="settings"]').click()
     laptop.locator('#appearance-mode').select_option('dark')
@@ -237,4 +308,4 @@ with sync_playwright() as p:
     phone.screenshot(path='/tmp/caltrack-sync-mobile.png')
     browser.close()
 server.shutdown()
-print('PASS: two-device and offline journal sync, workout completion, independent color merges, photo sync, account switching and preference isolation, auth flow, conflict resolution, and mobile layout (mocked Supabase API)')
+print('PASS: two-device/offline sync, delayed loading guard, pending workout reload, cleared-week persistence, cache recovery, custom exercises and timed targets, color/photo sync, account isolation, auth flow and conflicts (mocked Supabase API)')

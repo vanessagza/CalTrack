@@ -1,4 +1,4 @@
-import { mixColors, accentText } from './preferences.js?v=6';
+import { mixColors, accentText } from './preferences.js?v=7';
 
 export function applyAppearance(preferences) {
   window.DailyBalanceTheme.setPreference(preferences.theme);
@@ -36,4 +36,16 @@ export async function prepareProfilePhoto(file) {
     context.drawImage(bitmap,(bitmap.width-side)/2,(bitmap.height-side)/2,side,side,0,0,256,256);
     return canvas.toDataURL('image/jpeg',0.85);
   } finally { bitmap.close(); }
+}
+
+export async function prepareExerciseImage(file) {
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>10*1024*1024)throw new Error('Choose a JPEG, PNG or WebP image smaller than 10 MB.');
+  let bitmap;
+  try{bitmap=await createImageBitmap(file);}catch{throw new Error('This illustration could not be opened.');}
+  try {
+    const scale=Math.min(1,640/Math.max(bitmap.width,bitmap.height)),canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+    const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);
+    context.drawImage(bitmap,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',0.8);
+  }finally{bitmap.close();}
 }

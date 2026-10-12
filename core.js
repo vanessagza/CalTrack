@@ -1,4 +1,6 @@
-import { validatePreferences } from './preferences.js?v=6';
+import { validatePreferences } from './preferences.js?v=7';
+import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=7';
+export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=7';
 
 export const STORAGE_KEY = 'daily-balance-v1';
 export const TIME_ZONE = 'Asia/Tashkent';
@@ -24,7 +26,7 @@ export const EXERCISE_PRESETS = [
   { id:'plank', name:'Plank', group:'Core', equipment:'bodyweight', unit:'seconds', cue:'Keep a straight line and breathe throughout the hold.' },
   { id:'goblet-squat', name:'Goblet squat', group:'Lower body', equipment:'dumbbells', compound:true, cue:'Hold one dumbbell at your chest and squat with control.' },
   { id:'dumbbell-rdl', name:'Dumbbell Romanian deadlift', group:'Lower body', equipment:'dumbbells', compound:true, cue:'Hinge at your hips; keep the weights close to your legs.' },
-  { id:'dumbbell-press', name:'Dumbbell floor press', group:'Upper push', equipment:'dumbbells', compound:true, cue:'Lower until your upper arms gently touch the floor.' },
+  { id:'dumbbell-press', name:'Dumbbell floor chest press', group:'Upper push', equipment:'dumbbells', compound:true, cue:'Lower until your upper arms gently touch the floor.' },
   { id:'dumbbell-row', name:'One-arm dumbbell row', group:'Upper pull', equipment:'dumbbells', compound:true, unilateral:true, cue:'Support your torso and pull toward your hip. Reps are per arm.' },
   { id:'shoulder-press', name:'Dumbbell shoulder press', group:'Upper push', equipment:'dumbbells', compound:true, cue:'Press overhead without leaning back.' },
   { id:'lateral-raise', name:'Dumbbell lateral raise', group:'Upper push', equipment:'dumbbells', cue:'Use a light weight and lift without swinging.' },
@@ -34,8 +36,15 @@ export const EXERCISE_PRESETS = [
   { id:'cable-row', name:'Seated cable row', group:'Upper pull', equipment:'gym', compound:true, cue:'Pull with control while keeping your torso steady.' },
   { id:'chest-press', name:'Machine chest press', group:'Upper push', equipment:'gym', compound:true, cue:'Adjust the seat so the handles sit around chest height.' },
   { id:'leg-curl', name:'Leg curl', group:'Lower body', equipment:'gym', cue:'Bend your knees with control and lower slowly.' },
-];
-export const DEFAULT_WORKOUT_SETTINGS = { goal:'preserve', experience:'beginner', equipment:'bodyweight' };
+  { id:'hip-abduction', name:'Side-lying hip abduction', group:'Lower body', equipment:'bodyweight', unilateral:true, cue:'Keep your hips stacked and lift the top leg with control.' },
+  { id:'wall-push-up', name:'Wall or incline push-up', group:'Upper push', equipment:'bodyweight', compound:true, cue:'Start against a wall; progress to a sturdy nonslip countertop.' },
+  { id:'bent-over-row', name:'Bent-over dumbbell row', group:'Upper pull', equipment:'dumbbells', compound:true, cue:'Hinge at your hips and pull the dumbbells toward your lower ribs.' },
+  { id:'modified-side-plank', name:'Modified side plank', group:'Core', equipment:'bodyweight', unit:'seconds', unilateral:true, cue:'Support yourself on your forearm and bent knees.' },
+  { id:'walking', name:'Comfortable walk', group:'Cardio', equipment:'bodyweight', unit:'minutes', cue:'Keep a comfortable conversational pace.' },
+  { id:'mobility', name:'Gentle mobility or stretching', group:'Mobility', equipment:'bodyweight', unit:'minutes', cue:'Move your shoulders, ankles and hips gently.' },
+].map(exercise=>({...exercise,unit:exercise.unit||'reps',...EXERCISE_DETAILS[exercise.id],image:`./assets/exercises/${exercise.id}.svg`}));
+export const EXERCISE_GROUPS=['Lower body','Upper push','Upper pull','Core','Cardio','Mobility'];
+export const DEFAULT_WORKOUT_SETTINGS = { goal:'preserve', experience:'beginner', equipment:'bodyweight', autoRepeat:true,view:'grid' };
 export const DEFAULT_PROFILE = {
   name: 'You', birthDate: '1996-01-01', sex: 'female', height: 170,
   weight: 70, startWeight: 70, goalWeight: 65, activity: 1.2,
@@ -268,62 +277,132 @@ export function validateWorkoutSettings(value = DEFAULT_WORKOUT_SETTINGS) {
     if (!options.some(([id]) => id === value[key])) throw new Error(`Choose a valid workout ${key}.`);
     settings[key] = value[key];
   }
+  if(value.autoRepeat!==undefined&&typeof value.autoRepeat!=='boolean')throw new Error('Weekly repeat setting is invalid.');
+  settings.autoRepeat=value.autoRepeat!==false;
+  if(value.view!==undefined&&!['grid','list'].includes(value.view))throw new Error('Choose grid or list calendar view.');
+  settings.view=value.view||'grid';
   return settings;
 }
 
-export function validateWorkoutEntry(value) {
+export function validateExercise(value) {
+  if(!value||!/^custom-exercise-[\w-]{1,80}$/.test(value.id))throw new Error('Custom exercise ID is invalid.');
+  const name=String(value.name||'').trim().slice(0,100);
+  if(!name)throw new Error('Give your exercise a name.');
+  if(!EXERCISE_GROUPS.includes(value.group))throw new Error('Choose an exercise type.');
+  if(!WORKOUT_EQUIPMENT.some(([key])=>key===value.equipment))throw new Error('Choose exercise equipment.');
+  if(!['reps','seconds','minutes'].includes(value.unit))throw new Error('Choose reps, seconds or minutes.');
+  const sets=numberIn(value.sets??2,1,10,'Default sets'),reps=numberIn(value.reps??10,1,value.unit==='seconds'?300:value.unit==='minutes'?240:100,'Default target');
+  const restSeconds=numberIn(value.restSeconds??60,0,600,'Rest');
+  if(![sets,reps,restSeconds].every(Number.isInteger))throw new Error('Sets, targets and rest must be whole numbers.');
+  const image=String(value.image||'');
+  if(image&&(image.length>350000||!/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(image)))throw new Error('Use a JPEG, PNG or WebP exercise illustration.');
+  return {id:value.id,name,group:value.group,equipment:value.equipment,unit:value.unit,unilateral:value.unilateral===true,
+    sets,reps,restSeconds,compound:value.compound===true,instructions:String(value.instructions||'').slice(0,2500),
+    muscles:String(value.muscles||'').slice(0,160),avoid:String(value.avoid||'').slice(0,1200),image,archived:value.archived===true};
+}
+export function exerciseCatalog(workouts) {return [...EXERCISE_PRESETS,...(workouts.exercises||[])];}
+export function scheduledExercise(entry,workouts) {
+  const exercise=exerciseCatalog(workouts).find(e=>e.id===entry.exerciseId)||entry.exercise;
+  return {...exercise,...entry.exercise};
+}
+export function validateWorkoutEntry(value,catalog=EXERCISE_PRESETS) {
   if (!value || typeof value !== 'object') throw new Error('Workout exercise is missing.');
-  const preset = EXERCISE_PRESETS.find(e => e.id === value.exerciseId);
+  let preset = catalog.find(e => e.id === value.exerciseId);
+  let snapshot;
+  if(value.exercise&&value.exerciseId.startsWith('custom-exercise-')) {
+    const checked=validateExercise({...value.exercise,image:''});
+    if(checked.id!==value.exerciseId)throw new Error('Exercise snapshot is invalid.');
+    snapshot={id:checked.id,name:checked.name,group:checked.group,equipment:checked.equipment,unit:checked.unit,unilateral:checked.unilateral};
+    preset={...preset,...snapshot};
+  }
   if (!preset) throw new Error('Choose an exercise from the preset list.');
   if (typeof value.id !== 'string' || !value.id.trim() || value.id.length > 100) throw new Error('Workout exercise ID is invalid.');
   const sets = numberIn(value.sets, 1, 10, 'Sets');
-  const reps = numberIn(value.reps, 1, preset.unit === 'seconds' ? 300 : 100, preset.unit === 'seconds' ? 'Hold duration' : 'Reps');
-  if (!Number.isInteger(sets) || !Number.isInteger(reps)) throw new Error('Sets and reps or seconds must be whole numbers.');
+  const max=preset.unit==='seconds'?300:preset.unit==='minutes'?240:100;
+  const reps = numberIn(value.reps,1,max,'Exercise target');
+  const setsMax=numberIn(value.setsMax??sets,sets,10,'Maximum sets');
+  const repsMax=numberIn(value.repsMax??reps,reps,max,'Maximum target');
+  const restSeconds=numberIn(value.restSeconds??(preset.unit==='minutes'?0:60),0,600,'Rest');
+  if (![sets,setsMax,reps,repsMax,restSeconds].every(Number.isInteger)) throw new Error('Sets, targets and rest must be whole numbers.');
   const load = value.load === '' || value.load == null ? null : numberIn(value.load, 0, 500, 'Exercise weight');
   if (value.completed !== undefined && typeof value.completed !== 'boolean') throw new Error('Exercise completion is invalid.');
-  return { id:value.id, exerciseId:preset.id, sets, reps, load,
+  if(preset.id.startsWith('custom-exercise-')&&!snapshot)snapshot={id:preset.id,name:preset.name,group:preset.group,equipment:preset.equipment,unit:preset.unit,unilateral:preset.unilateral};
+  return { id:value.id, exerciseId:preset.id, sets,setsMax,reps,repsMax,restSeconds,load,...(snapshot?{exercise:snapshot}:{}),
     note:String(value.note || '').slice(0, 400), completed:value.completed === true };
 }
+export function validateSessionNote(value={}) {
+  if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Session details are invalid.');
+  return {title:String(value.title||'').slice(0,120),goal:String(value.goal||'').slice(0,1500),note:String(value.note||'').slice(0,2000)};
+}
+export const workoutConfigKey=settings=>`${settings.goal}:${settings.experience}:${settings.equipment}`;
 
 export function validateWorkouts(value) {
   // Version 1 journals from before the planner have no workout records.
-  if (value === undefined) return { settings:{ ...DEFAULT_WORKOUT_SETTINGS }, days:{} };
+  if (value === undefined) value={settings:{...DEFAULT_WORKOUT_SETTINGS},days:{}};
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Workout history is invalid.');
   const settings = validateWorkoutSettings(value.settings);
+  if(value.exercises!==undefined&&(!Array.isArray(value.exercises)||value.exercises.length>200))throw new Error('Exercise library is invalid.');
+  const exercises=(value.exercises||[]).map(validateExercise),catalog=[...EXERCISE_PRESETS,...exercises];
+  if(new Set(exercises.map(e=>e.id)).size!==exercises.length)throw new Error('Exercise library IDs must be unique.');
   if (!value.days || typeof value.days !== 'object' || Array.isArray(value.days) || Object.keys(value.days).length > 10000) throw new Error('Workout history is invalid.');
   const days = {};
   const ids = new Set();
   for (const [date, entries] of Object.entries(value.days)) {
     if (!isDateKey(date) || !Array.isArray(entries) || entries.length > 50) throw new Error('Workout day is invalid.');
     days[date] = entries.map(value => {
-      const entry = validateWorkoutEntry(value);
+      const entry = validateWorkoutEntry(value,catalog);
       if (ids.has(entry.id)) throw new Error('Workout exercises must have distinct IDs.');
       ids.add(entry.id);
       return entry;
     });
   }
-  return { settings, days };
+  const notes={};
+  if(value.notes!==undefined&&(!value.notes||typeof value.notes!=='object'||Array.isArray(value.notes)||Object.keys(value.notes).length>10000))throw new Error('Session history is invalid.');
+  for(const [date,note] of Object.entries(value.notes||{})){if(!isDateKey(date))throw new Error('Session date is invalid.');notes[date]=validateSessionNote(note);}
+  const skippedWeeks=value.skippedWeeks||[];
+  if(!Array.isArray(skippedWeeks)||skippedWeeks.length>10000||skippedWeeks.some(date=>!isDateKey(date)||weekDates(date)[0]!==date))throw new Error('Cleared weeks are invalid.');
+  let template=null;
+  if(value.template!=null) {
+    const t=value.template;
+    if(!/^(preserve|build|strength|fitness):(beginner|regular):(bodyweight|dumbbells|gym)$/.test(t.config)||!Array.isArray(t.days)||t.days.length!==7||!Array.isArray(t.notes)||t.notes.length!==7)throw new Error('Weekly routine is invalid.');
+    template={config:t.config,days:t.days.map(entries=>{if(!Array.isArray(entries)||entries.length>50)throw new Error('Weekly routine is invalid.');return entries.map(entry=>({...validateWorkoutEntry(entry,catalog),completed:false}));}),notes:t.notes.map(validateSessionNote)};
+  }
+  return {settings,days,exercises,notes,skippedWeeks:[...new Set(skippedWeeks)],template};
 }
 
-export function workoutSuggestion(profile, settings, exerciseId, date = todayKey(), calories = null) {
+export function workoutSuggestion(profile, settings, exerciseId, date = todayKey(), calories = null,catalog=EXERCISE_PRESETS) {
   const preferences = validateWorkoutSettings(settings);
-  const exercise = EXERCISE_PRESETS.find(e => e.id === exerciseId);
+  const exercise = catalog.find(e => e.id === exerciseId);
   if (!exercise) throw new Error('Choose an exercise from the preset list.');
   const energy = calculateGoals(profile, date, calories);
+  if(exercise.id.startsWith('custom-exercise-'))return {sets:exercise.sets,setsMax:exercise.sets,reps:exercise.reps,repsMax:exercise.reps,restSeconds:exercise.restSeconds,load:null,energy,reducedVolume:false};
   const ratio = energy.kcal / energy.tdee;
   // These are conservative planning heuristics, not a strength prediction.
   let sets = { preserve:3, build:4, strength:3, fitness:2 }[preferences.goal];
   if (preferences.experience === 'beginner') sets = Math.min(sets, 3);
   const reducedVolume = ratio < 0.9 && sets > 2;
   if (reducedVolume) sets = Math.max(2, sets - 1);
-  const reps = exercise.unit === 'seconds' ? (preferences.experience === 'beginner' ? 20 : 30)
+  const reps = exercise.unit==='minutes'? (exercise.id==='mobility'?5:20):exercise.unit === 'seconds' ? (preferences.experience === 'beginner' ? 20 : 30)
     : preferences.goal === 'strength' && exercise.compound ? (preferences.experience === 'beginner' ? 8 : 5)
     : exercise.group === 'Core' ? 8 : preferences.goal === 'fitness' ? 12 : exercise.compound ? 10 : 12;
-  return { sets, reps, load:null, energy, reducedVolume };
+  return { sets:exercise.unit==='minutes'?1:sets,reps,load:null,restSeconds:exercise.unit==='minutes'?0:60,energy,reducedVolume };
+}
+
+export function starterWeek(settings,date,existing={},earliest=todayKey(),template=null) {
+  const dates=weekDates(date),days={},notes={};
+  const personal=template?.config===workoutConfigKey(settings)?template:null;
+  if(!personal&&!matchesStarterRoutine(settings))return {days,notes};
+  dates.forEach((day,index)=>{
+    if(day<earliest||existing[day]?.length)return;
+    days[day]=personal?personal.days[index].map(entry=>({...entry,id:crypto.randomUUID(),completed:false})):PRESERVATION_ROUTINE[index].entries.map(([exerciseId,sets,reps,repsMax,restSeconds,setsMax=sets])=>validateWorkoutEntry({id:crypto.randomUUID(),exerciseId,sets,setsMax,reps,repsMax,restSeconds,load:null,completed:false}));
+    notes[day]=validateSessionNote(personal?personal.notes[index]:PRESERVATION_ROUTINE[index]);
+  });
+  return {days,notes};
 }
 
 export function suggestWorkoutWeek(profile, settings, date, nutritionDays = {}, existing = {}, earliest = todayKey()) {
   validateWorkoutSettings(settings);
+  if(matchesStarterRoutine(settings))return starterWeek(settings,date,existing,earliest).days;
   const dates = weekDates(date);
   const sessions = settings.experience === 'beginner' ? [0, 3] : [0, 2, 4];
   const programs = {
@@ -343,13 +422,23 @@ export function suggestWorkoutWeek(profile, settings, date, nutritionDays = {}, 
   return result;
 }
 
-export function copyWorkoutWeek(days, date, earliest = todayKey()) {
+export function copyWorkoutWeek(days, date, earliest = todayKey(),catalog=EXERCISE_PRESETS) {
   const result = {};
   for (const source of weekDates(date)) {
     const target = shiftDate(source, 7);
     if (target < earliest || days[target]?.length || !days[source]?.length) continue;
-    result[target] = days[source].map(entry => validateWorkoutEntry({ ...entry, id:crypto.randomUUID(), completed:false }));
+    result[target] = days[source].map(entry => validateWorkoutEntry({ ...entry, id:crypto.randomUUID(), completed:false },catalog));
   }
+  return result;
+}
+
+export function clearWorkoutSchedule(workouts,scope,date) {
+  if(!['day','week','all'].includes(scope))throw new Error('Choose a valid clear option.');
+  const result=structuredClone(workouts),dates=scope==='all'?new Set([...Object.keys(result.days),...Object.keys(result.notes)]):new Set(scope==='week'?weekDates(date):[date]);
+  if(scope!=='all'&&!isDateKey(date))throw new Error('Choose a valid date.');
+  for(const day of dates){delete result.days[day];delete result.notes[day];}
+  if(scope==='all'){result.settings.autoRepeat=false;result.skippedWeeks=[];}
+  else result.skippedWeeks=[...new Set([...result.skippedWeeks,weekDates(date)[0]])];
   return result;
 }
 

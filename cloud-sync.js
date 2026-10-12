@@ -1,8 +1,8 @@
 import { createClient } from './vendor/supabase.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './sync-config.js';
-import { STORAGE_KEY, createInitialState, validateState as validateJournalState } from './core.js?v=6';
-import { DEFAULT_PREFERENCES } from './preferences.js?v=6';
-import { JournalConflict, mergeJournals, sameJournal } from './journal-merge.js?v=6';
+import { STORAGE_KEY, createInitialState, validateState as validateJournalState } from './core.js?v=7';
+import { DEFAULT_PREFERENCES } from './preferences.js?v=7';
+import { JournalConflict, mergeJournals, sameJournal } from './journal-merge.js?v=7';
 
 function validateState(value) {
   const journal=validateJournalState(value);
@@ -28,25 +28,34 @@ export function createJournalSync({ applyJournal, statusChanged, canRefresh }) {
   const cacheKey = id => `daily-balance-account-${id}`;
   const emit = (next, detail = '') => {
     phase = next; message = detail;
-    statusChanged({ phase, message, email: user?.email || '', signedIn: !!user });
+    statusChanged({ phase, message, email: user?.email || '', signedIn: !!user,ready:phase==='local'||!!(user&&cache?.approved) });
   };
-  function persist() {
-    if (user && cache) localStorage.setItem(cacheKey(user.id), JSON.stringify(cache));
+  function writeSnapshot(key,value) {
+    const previous=localStorage.getItem(key),next=JSON.stringify(value);
+    if(previous&&previous!==next)try {
+      JSON.parse(previous);
+      localStorage.setItem(key+'-recovery',previous);
+    } catch { /* Keep the primary write available and retain recovery for malformed storage. */ }
+    localStorage.setItem(key,next);
   }
+  function persist() { if(user&&cache)writeSnapshot(cacheKey(user.id),cache); }
   function guest() {
-    try { return validateState(JSON.parse(localStorage.getItem(STORAGE_KEY))); }
-    catch { return createInitialState(); }
+    for(const key of [STORAGE_KEY,STORAGE_KEY+'-recovery'])try {
+      return validateState(JSON.parse(localStorage.getItem(key)));
+    } catch { /* Try the previous snapshot if the latest local journal is unreadable. */ }
+    return createInitialState();
   }
   function cached(id) {
-    try {
-      const value = JSON.parse(localStorage.getItem(cacheKey(id)));
-      if (!value || !Number.isSafeInteger(value.revision) || value.revision < 0) return null;
+    for(const key of [cacheKey(id),cacheKey(id)+'-recovery'])try {
+      const value = JSON.parse(localStorage.getItem(key));
+      if (!value || !Number.isSafeInteger(value.revision) || value.revision < 0) continue;
       return { journal: validateState(value.journal), base: value.base ? validateState(value.base) : null,
         revision: value.revision, dirty: !!value.dirty, approved: !!value.approved };
-    } catch { return null; }
+    } catch { /* Try the last local snapshot before starting a fresh cache. */ }
+    return null;
   }
   function showError(error) {
-    if (!navigator.onLine || error instanceof TypeError || error.name === 'TimeoutError') {
+    if (!navigator.onLine || error instanceof TypeError || error.name === 'TimeoutError' || /Failed to fetch|NetworkError|Load failed/.test(error.message||'')) {
       emit('offline', 'Changes are saved on this device. Sync will retry when connected.');
     } else if (['42P01', 'PGRST202', 'PGRST205'].includes(error.code)) {
       emit('error', 'Cloud setup is incomplete. Run the Supabase database setup first.');
@@ -79,6 +88,7 @@ export function createJournalSync({ applyJournal, statusChanged, canRefresh }) {
       }
       if (!cache.approved) {
         if (remote) {
+          if(cache.dirty)throw new JournalConflict();
           cache = { journal: remote, base: remote, revision: Number(row.revision), dirty: false, approved: true };
           persist(); applyJournal(remote); emit('synced'); return;
         }
@@ -173,7 +183,8 @@ export function createJournalSync({ applyJournal, statusChanged, canRefresh }) {
   return {
     isSignedIn: () => !!user,
     saveLocal(journal) {
-      if (!user) { localStorage.setItem(STORAGE_KEY, JSON.stringify(journal)); return; }
+      if(phase==='starting'||(user&&!cache.approved))throw new Error('Wait for your saved journal to load before editing.');
+      if (!user) { writeSnapshot(STORAGE_KEY,journal); return; }
       if (sameJournal(cache.journal, journal)) return;
       cache.journal = structuredClone(journal); cache.dirty = true; persist();
       if (!['choose', 'conflict'].includes(phase)) { emit('pending'); schedule(); }
