@@ -39,6 +39,26 @@ journal. No personal records are embedded in the script.
 
 You can rerun the script. It does not delete existing journals.
 
+Refreshing the SQL editor does not delete the table or save function previously
+created by a successful run. The query text does not have to remain in the editor.
+The setup script is retained in this repository.
+
+If sync times out or the dashboard reports high resource usage, run the two
+read-only checks in [supabase/diagnostics.sql](supabase/diagnostics.sql), one at a
+time. They report whether the table and function exist, total database size, the
+journal table's disk size, and estimated old row versions awaiting cleanup. They
+do not read personal journal contents or change records. Estimates and cleanup
+timestamps help investigation; they do not establish the cause of an outage.
+
+Copy the exact dashboard usage label too: CPU percentage, database size, disk
+allocation and network transfer are different resources. Built-in exercise SVGs
+are hosted with the website on GitHub Pages. Uploaded profile and custom exercise
+images are resized and included in the private journal; exercise images are
+stored once in the library rather than copied into every scheduled workout.
+Database updates can leave old row versions until PostgreSQL cleans them up, so
+disk use can exceed the size of current records. Confirm the measurements before
+choosing a cleanup, storage migration or plan change.
+
 ## 4. Website integration
 
 The Project URL and public key must be added to the website's browser
