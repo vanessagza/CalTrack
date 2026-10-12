@@ -116,12 +116,73 @@ test('whole-operation timeouts settle syncing and late responses cannot overwrit
   const d=device(db,{timeoutMs:20});
   try {
     await until(()=>d.view.phase==='error');assert.equal(d.view.ready,false);
-    assert.match(d.view.message,/too long/);
+    assert.match(d.view.message,/Automatic retries have stopped/);
     const readCount=db.reads.length;await wait(50);assert.equal(db.reads.length,readCount);
     db.holdRead=null;db.row.journal.profile.name='Latest';db.row.revision++;
     d.sync.retry();await until(()=>d.view.ready);assert.equal(d.journal.profile.name,'Latest');
     release();await wait(5);assert.equal(d.journal.profile.name,'Latest');
   }finally{release?.();d.sync.stop();}
+});
+
+test('a timeout stays paused through timers, focus and visibility events until explicit retry',async()=>{
+  const db=server();db.holdRead=new Promise(()=>{});
+  const d=device(db,{timeoutMs:20,pollMs:10});
+  try {
+    await until(()=>d.view.phase==='error');
+    assert.equal(d.view.error.code,'SYNC_TIMEOUT');
+    assert.equal(d.view.error.stage,'loading the account journal');
+    const reads=db.reads.length;
+    for(let i=0;i<5;i++)window.dispatchEvent(new Event('focus'));
+    document.visibilityState='hidden';document.dispatchEvent(new Event('visibilitychange'));
+    document.visibilityState='visible';document.dispatchEvent(new Event('visibilitychange'));
+    await wait(2200);
+    assert.equal(db.reads.length,reads);assert.equal(d.view.phase,'error');
+    db.holdRead=null;d.sync.retry();await until(()=>d.view.ready);
+    assert.ok(db.reads.length>reads);
+  }finally{document.visibilityState='visible';d.sync.stop();}
+});
+
+test('pending appearance survives a reset full cache and a failed cloud reload',async()=>{
+  const db=server(),storage=new MemoryStorage();let d=device(db,{storage});
+  try {
+    await until(()=>d.view.ready);
+    const changed=structuredClone(d.journal);
+    changed.preferences.theme='dark';changed.preferences.palettes.dark.background='#030509';changed.preferences.typography.body=20;
+    db.fail=true;d.sync.saveLocal(changed);await until(()=>d.view.phase==='offline');
+    const checkpoint=JSON.parse(storage.getItem(key+'-appearance'));
+    assert.equal(checkpoint.pending,true);assert.equal(checkpoint.preferences.palettes.dark.background,'#030509');
+    d.sync.stop();
+    const reset=JSON.parse(storage.getItem(key));reset.journal.preferences=fixture().preferences;reset.dirty=false;
+    reset.journal.days['2026-10-12']={entries:[newEntry(reset.journal.foods[0],1,'portion','Lunch','recent-food')],note:''};
+    storage.setItem(key,JSON.stringify(reset));
+    d=device(db,{storage});await until(()=>d.view.phase==='offline');
+    assert.equal(d.journal.preferences.palettes.dark.background,'#030509');assert.equal(d.journal.preferences.typography.body,20);
+    assert.equal(d.journal.days['2026-10-12'].entries[0].id,'recent-food');
+    db.fail=false;d.sync.retry();await until(()=>d.view.ready);
+    assert.equal(db.row.journal.preferences.palettes.dark.background,'#030509');
+    assert.equal(db.row.journal.days['2026-10-12'].entries[0].id,'recent-food');
+    assert.equal(JSON.parse(storage.getItem(key+'-appearance')).pending,false);
+  }finally{d.sync.stop();}
+});
+
+test('recovering saved appearance keeps current logs, persists while cloud is down and syncs after recovery',async()=>{
+  const current=fixture();current.days['2026-10-12']={entries:[newEntry(current.foods[0],1,'portion','Lunch','current-food')],note:''};
+  const db=server(current),storage=new MemoryStorage(),previous=fixture();previous.preferences.palettes.dark.background='#030509';
+  storage.setItem(key,JSON.stringify({journal:current,base:current,revision:1,dirty:false,approved:true}));
+  storage.setItem(key+'-before-sync-update',JSON.stringify({journal:previous,base:previous,revision:1,dirty:false,approved:true}));
+  db.fail=true;let d=device(db,{storage});
+  try {
+    await until(()=>d.view.phase==='offline');assert.ok(d.sync.recoverableAppearance());
+    assert.equal(d.sync.recoverAppearance(),true);assert.equal(d.view.ready,false);
+    assert.equal(d.journal.preferences.palettes.dark.background,'#030509');
+    assert.equal(d.journal.days['2026-10-12'].entries[0].id,'current-food');
+    const reads=db.reads.length;window.dispatchEvent(new Event('focus'));await wait(20);assert.equal(db.reads.length,reads);
+    d.sync.stop();d=device(db,{storage});await until(()=>d.view.phase==='offline');
+    assert.equal(d.journal.preferences.palettes.dark.background,'#030509');
+    db.fail=false;d.sync.retry();await until(()=>d.view.ready);
+    assert.equal(db.row.journal.preferences.palettes.dark.background,'#030509');
+    assert.equal(db.row.journal.days['2026-10-12'].entries[0].id,'current-food');
+  }finally{d.sync.stop();}
 });
 
 test('idle checks fetch revision only, skip writes, and repeated auth notifications do not start loops',async()=>{

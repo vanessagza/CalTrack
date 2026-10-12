@@ -244,7 +244,7 @@ with sync_playwright() as p:
     restored=laptop.evaluate('(key)=>JSON.parse(localStorage.getItem(key))',account_key)
     assert len([e for day in restored['journal']['workouts']['days'].values() for e in day])==23
     blocked_accounts.remove(ALICE)
-    laptop.evaluate('window.dispatchEvent(new Event("focus"))');synced(laptop)
+    laptop.locator('#sync-lock [data-action="sync-refresh"]').click();synced(laptop)
     laptop.locator('#workout-date').fill(future_day)
     expect(laptop.locator('.week-exercise-list li')).to_have_count(22)
     assert len([e for day in rows[ALICE]['journal']['workouts']['days'].values() for e in day])==23
@@ -259,7 +259,7 @@ with sync_playwright() as p:
     restored=laptop.evaluate('(key)=>JSON.parse(localStorage.getItem(key+"-recovery"))',account_key)
     assert future_day not in restored['journal']['workouts']['days']
     blocked_accounts.remove(ALICE)
-    laptop.evaluate('window.dispatchEvent(new Event("focus"))');synced(laptop)
+    laptop.locator('#sync-lock [data-action="sync-refresh"]').click();synced(laptop)
     # Personal exercise types, instructions, timed targets and completion travel with the account.
     laptop.locator('.workout-session [data-action="new-exercise"]').click()
     laptop.locator('#custom-name').fill('Reach and hold')

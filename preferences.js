@@ -17,6 +17,7 @@ export const DEFAULT_PREFERENCES = {
   },
   typography:{ title:36, heading:20, body:14, subtext:12 },
   density:'comfortable', reduceMotion:false, avatar:'',
+  changeId:'',
 };
 
 export function validateHex(value) {
@@ -52,6 +53,10 @@ export function validatePreferences(value) {
   if (value === undefined) return structuredClone(DEFAULT_PREFERENCES);
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Appearance settings are invalid.');
   const result=structuredClone(DEFAULT_PREFERENCES);
+  if(value.changeId!==undefined) {
+    if(typeof value.changeId!=='string'||(value.changeId&&!/^[\w-]{1,100}$/.test(value.changeId)))throw new Error('Appearance change ID is invalid.');
+    result.changeId=value.changeId;
+  }
   if (value.theme !== undefined) {
     if (!['system','light','dark'].includes(value.theme)) throw new Error('Choose light, dark or device theme.');
     result.theme=value.theme;

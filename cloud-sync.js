@@ -1,21 +1,21 @@
 import { createClient } from './vendor/supabase.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './sync-config.js';
-import { STORAGE_KEY, createInitialState, validateState } from './core.js?v=8';
-import { DEFAULT_PREFERENCES } from './preferences.js?v=8';
-import { rebaseJournal, sameJournal } from './journal-merge.js?v=8';
-import { validateCloudJournal } from './sync-journal.js?v=8';
+import { STORAGE_KEY, createInitialState, validateState } from './core.js?v=9';
+import { DEFAULT_PREFERENCES,validatePreferences } from './preferences.js?v=9';
+import { rebaseJournal, sameJournal } from './journal-merge.js?v=9';
+import { validateCloudJournal,sameAppearance,rebaseAppearance } from './sync-journal.js?v=9';
 
-export function createJournalSync({ applyJournal, statusChanged, client:providedClient, storage:localCache=localStorage, timeoutMs=15000, pollMs=30000 }) {
+export function createJournalSync({ applyJournal, statusChanged, client:providedClient, storage:localCache=localStorage, timeoutMs=45000, pollMs=30000 }) {
   const client=providedClient||createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{
     auth:{storageKey:'daily-balance-auth',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'implicit'},
     global:{fetch:(url,options)=>fetch(url,{...options,signal:options.signal||AbortSignal.timeout(timeoutMs)})},
   });
   let user=null,cache=null,phase='starting',epoch=0,activeRun=null,timer,stopped=false;
-  let confirmed=false,refreshRequired=true,retryCount=0,rerun=false;
+  let confirmed=false,refreshRequired=true,rerun=false,circuitOpen=false,lastFailure=null;
   const cacheKey=id=>'daily-balance-account-'+id;
   const emit=(next,message='')=>{
     phase=next;
-    statusChanged({phase,message,email:user?.email||'',signedIn:!!user,
+    statusChanged({phase,message,error:lastFailure,email:user?.email||'',signedIn:!!user,
       ready:phase==='local'||!!(user&&confirmed&&phase==='synced'&&!cache?.dirty)});
   };
   function writeSnapshot(key,value) {
@@ -24,7 +24,20 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
     if(previous)try{JSON.parse(previous);localCache.setItem(key+'-recovery',previous);}catch{/* Prioritize the primary write. */}
     localCache.setItem(key,next);
   }
-  function persist(){if(user&&cache)writeSnapshot(cacheKey(user.id),{...cache,protocol:2});}
+  function persist(){if(user&&cache)writeSnapshot(cacheKey(user.id),{...cache,protocol:3});}
+  const appearanceKey=id=>cacheKey(id)+'-appearance';
+  function readAppearance(id) {
+    for(const suffix of ['', '-recovery'])try {
+      const value=JSON.parse(localCache.getItem(appearanceKey(id)+suffix));
+      if(value?.version!==1||typeof value.pending!=='boolean')continue;
+      return {...value,preferences:validatePreferences(value.preferences),base:validatePreferences(value.base)};
+    }catch{/* Try the independent appearance snapshot. */}
+    return null;
+  }
+  function keepAppearance(preferences,base,revision,pending) {
+    if(!user)return;
+    writeSnapshot(appearanceKey(user.id),{version:1,preferences:validatePreferences(preferences),base:validatePreferences(base),revision,pending});
+  }
   function guest() {
     for(const key of [STORAGE_KEY,STORAGE_KEY+'-recovery'])try{return validateState(JSON.parse(localCache.getItem(key)));}catch{/* Try recovery. */}
     return createInitialState();
@@ -40,7 +53,7 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
     // Preserve upgrade snapshots for recovery without publishing any user data.
     for(const suffix of ['', '-recovery'])try {
       const raw=localCache.getItem(key+suffix),value=decodeCache(raw);
-      if(JSON.parse(raw).protocol!==2)for(const oldSuffix of ['', '-recovery'])try {
+      if(JSON.parse(raw).protocol!==3)for(const oldSuffix of ['', '-recovery'])try {
         const old=localCache.getItem(key+oldSuffix);decodeCache(old);
         if(!localCache.getItem(key+'-before-sync-update'+oldSuffix))localCache.setItem(key+'-before-sync-update'+oldSuffix,old);
       }catch{/* An extra recovery snapshot must not prevent syncing. */}
@@ -50,33 +63,37 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
   }
   function schedule(delay=0) {
     clearTimeout(timer);
-    if(!stopped&&user&&phase!=='choose')timer=setTimeout(()=>{
+    if(!stopped&&user&&!circuitOpen&&phase!=='choose')timer=setTimeout(()=>{
       if(!cache.dirty)refreshRequired=true;
       void synchronize();
     },delay);
   }
-  function failure(error) {
+  function failure(error,stage='request') {
+    clearTimeout(timer);circuitOpen=true;
     const offline=!navigator.onLine||error instanceof TypeError||/Failed to fetch|NetworkError|Load failed/.test(error.message||'');
-    const message=offline?'Connection unavailable. Editing is paused; saved changes will retry when connected.'
-      :error.code==='SYNC_TIMEOUT'?'Sync took too long. Editing is paused; your saved changes will retry automatically.'
+    const message=offline?'Connection unavailable. Your local journal is kept. Reconnect or choose Retry sync.'
+      :error.code==='SYNC_TIMEOUT'&&stage==='waiting for another tab'?'Another app tab did not release its sync lock. Automatic retries have stopped. Close unused app tabs, then choose Retry sync.'
+      :error.code==='SYNC_TIMEOUT'?'The Supabase database did not respond in time. Automatic retries have stopped. Your local journal is kept; choose Retry sync after the service recovers.'
       :['42P01','PGRST202','PGRST205'].includes(error.code)?'Cloud setup needs attention. Your local journal is kept.'
       :error.code==='42501'?'Cloud access was denied. Your local journal is kept.'
       :error.message||'Sync could not be confirmed. Your local journal is kept.';
+    lastFailure={code:String(error.code||error.name||'SYNC_ERROR'),stage,message:String(error.message||message)};
     emit(offline?'offline':'error',message);
-    if(navigator.onLine)schedule(Math.min(60000,2000*2**Math.min(retryCount++,5)));
   }
   function apply(journal,remoteUpdate=false){applyJournal(structuredClone(journal),{remoteUpdate});}
   function accept(journal,revision,remoteUpdate=false) {
     cache={journal:structuredClone(journal),base:structuredClone(journal),revision,dirty:false,approved:true};
-    persist();confirmed=true;refreshRequired=false;retryCount=0;
+    persist();
+    try{keepAppearance(journal.preferences,journal.preferences,revision,false);}catch{/* The full journal remains the primary recovery copy. */}
+    confirmed=true;refreshRequired=false;circuitOpen=false;lastFailure=null;
     apply(journal,remoteUpdate);emit('synced');
   }
   async function synchronize() {
-    if(stopped||!user||!cache||phase==='choose')return;
+    if(stopped||!user||!cache||circuitOpen||phase==='choose')return;
     if(document.visibilityState==='hidden'){emit('paused','This device checks the account before editing when you return.');return;}
     if(activeRun){rerun=true;return;}
     if(!navigator.onLine){emit('offline','Connection unavailable. Editing is paused until this device reconnects.');return;}
-    const run={epoch,id:user.id,controller:new AbortController(),cancelled:false};
+    const run={epoch,id:user.id,controller:new AbortController(),cancelled:false,stage:'waiting for another tab'};
     activeRun=run;rerun=false;
     const check=()=>{if(run.cancelled||epoch!==run.epoch||stopped)throw new DOMException('Sync cancelled.','AbortError');};
     const deadline=new Promise((_,reject)=>{
@@ -91,6 +108,7 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
     const task=async()=>{
       const {signal}=run.controller;
       const getRow=async(full)=>{
+        run.stage=full?'loading the account journal':'checking the account revision';
         const {data,error}=await client.from('daily_balance_journals')
           .select(full?'user_id,journal,revision':'user_id,revision').eq('user_id',run.id).abortSignal(signal).maybeSingle();
         check();if(error)throw error;
@@ -129,6 +147,7 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
       // re-read and rebase of changed fields, never replacement of a whole copy.
       for(let attempt=0;attempt<3;attempt++) {
         check();const expected=cache.revision,sent=structuredClone(cache.journal);
+        run.stage='saving the account journal';
         const {data,error}=await client.rpc('save_daily_balance_journal',{p_journal:sent,p_expected_revision:expected}).abortSignal(signal);
         check();
         if(error?.code==='40001') {
@@ -146,7 +165,7 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
         if(sameJournal(next,journal)){accept(journal,saved.revision);return;}
         cache={journal:next,base:structuredClone(journal),revision:saved.revision,dirty:true,approved:true};persist();apply(next);
       }
-      throw new Error('Another device is saving at the same time. Your changes are kept and will retry shortly.');
+      throw new Error('Another device is saving at the same time. Your changes are kept; choose Retry sync to try again.');
     };
     try {
       const locked=async()=>{
@@ -154,6 +173,10 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
         // Same-browser tabs share one writer; separate devices use revision checks.
         const shared=cached(run.id);
         if(shared&&shared.revision>=cache.revision) {
+          const original=shared.journal;
+          shared.journal=validateCloudJournal(shared.journal,cache.base||cache.journal);
+          if(shared.base)shared.base=validateCloudJournal(shared.base,cache.base||cache.journal);
+          shared.dirty=shared.dirty||!sameJournal(original,shared.journal);
           const wasDirty=cache.dirty;
           if(wasDirty&&!sameJournal(cache.journal,shared.journal))shared.journal=rebaseJournal(cache.base||createInitialState(),cache.journal,shared.journal);
           shared.dirty=shared.dirty||wasDirty||!!(shared.base&&!sameJournal(shared.journal,shared.base));cache=shared;
@@ -162,7 +185,7 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
       };
       const operation=navigator.locks?navigator.locks.request('daily-balance-sync-'+run.id,{signal:run.controller.signal},locked):locked();
       await Promise.race([operation,deadline]);
-    }catch(error){if(epoch===run.epoch&&!stopped&&error.name!=='AbortError')failure(error);}
+    }catch(error){if(epoch===run.epoch&&!stopped&&error.name!=='AbortError')failure(error,run.stage);}
     finally {
       clearTimeout(run.deadline);run.cancelled=true;
       if(activeRun===run)activeRun=null;
@@ -174,9 +197,17 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
     const next=session?.user||null;
     if(next?.id===user?.id&&phase!=='starting'&&(next||phase==='local'))return;
     epoch++;activeRun?.controller.abort();clearTimeout(timer);user=next;
-    confirmed=false;refreshRequired=true;retryCount=0;
+    confirmed=false;refreshRequired=true;circuitOpen=false;lastFailure=null;
     if(!user){cache=null;apply(guest());emit('local');return;}
     cache=cached(user.id)||{journal:guest(),base:null,revision:0,dirty:false,approved:false};
+    const appearance=readAppearance(user.id);
+    if(appearance?.pending) {
+      cache.journal.preferences=rebaseAppearance(appearance.base,appearance.preferences,cache.journal.preferences);
+      if(!cache.base)cache.base=createInitialState();
+      cache.approved=true;cache.dirty=true;
+    } else if(!appearance&&cache.approved)try {
+      keepAppearance(cache.journal.preferences,cache.base?.preferences||cache.journal.preferences,cache.revision,cache.dirty&&!sameAppearance(cache.journal.preferences,cache.base?.preferences));
+    }catch{/* Existing full-journal snapshots remain available. */}
     apply(cache.journal);emit('syncing','Loading the latest account copy. Editing is paused.');schedule(0);
   }
   const {data:listener}=client.auth.onAuthStateChange((event,session)=>{
@@ -187,25 +218,30 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
     clearTimeout(authTimer);if(error)failure(error);else bind(data.session);
   }).catch(error=>{clearTimeout(authTimer);failure(error);});
   const resume=()=>{
-    if(!user||document.visibilityState!=='visible'||activeRun)return;
+    if(!user||circuitOpen||document.visibilityState!=='visible'||activeRun)return;
     refreshRequired=true;emit('syncing','Checking changes from your other devices before editing.');schedule(0);
   };
   const visibility=()=>{
-    if(document.visibilityState==='hidden'&&user){clearTimeout(timer);refreshRequired=true;emit('paused','Editing resumes after this device checks the account.');}
+    if(document.visibilityState==='hidden'&&user){clearTimeout(timer);refreshRequired=true;if(!circuitOpen)emit('paused','Editing resumes after this device checks the account.');}
     else resume();
   };
-  const online=()=>{retryCount=0;resume();};
-  const offline=()=>{if(user){activeRun?.controller.abort();clearTimeout(timer);emit('offline','Connection unavailable. Editing is paused until this device reconnects.');}};
+  const online=()=>{circuitOpen=false;resume();};
+  const offline=()=>{if(user){activeRun?.controller.abort();clearTimeout(timer);circuitOpen=true;emit('offline','Connection unavailable. Editing is paused until this device reconnects.');}};
   const storage=event=>{
     if(!user||event.key!==cacheKey(user.id)||!event.newValue)return;
     try {
       const incoming=decodeCache(event.newValue);
       if(incoming.revision<cache.revision)return;
+      const original=incoming.journal;
+      incoming.journal=validateCloudJournal(incoming.journal,cache.base||cache.journal);
+      if(incoming.base)incoming.base=validateCloudJournal(incoming.base,cache.base||cache.journal);
+      incoming.dirty=incoming.dirty||!sameJournal(original,incoming.journal);
       if(cache.dirty&&!sameJournal(cache.journal,incoming.journal)) {
         incoming.journal=rebaseJournal(cache.base||createInitialState(),cache.journal,incoming.journal);
         incoming.dirty=!sameJournal(incoming.journal,incoming.base);
       }
       cache=incoming;refreshRequired=true;
+      if(circuitOpen){if(!activeRun)apply(cache.journal,true);return;}
       emit('syncing','Checking the change saved in another tab.');
       if(!activeRun)apply(cache.journal,true);
       schedule(0);
@@ -220,15 +256,54 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
       if(!user){if(phase!=='local')throw new Error('Wait for sign-in to finish.');writeSnapshot(STORAGE_KEY,validateState(journal));return;}
       if(!confirmed||phase!=='synced'||cache.dirty||!navigator.onLine)throw new Error('Wait until this device is synced before editing.');
       const next=validateState(journal);if(sameJournal(next,cache.journal))return;
+      const preferencesChanged=!sameAppearance(next.preferences,cache.journal.preferences);
+      next.preferences.changeId=preferencesChanged?crypto.randomUUID():cache.journal.preferences.changeId;
+      if(sameJournal(next,cache.journal))return;
       cache.journal=structuredClone(next);cache.dirty=true;
-      try{persist();}catch(error){emit('error','Browser storage could not save this change. Editing is paused; export a backup before leaving.');throw error;}
+      try{
+        if(preferencesChanged)keepAppearance(next.preferences,cache.base?.preferences||DEFAULT_PREFERENCES,cache.revision,true);
+        persist();
+      }catch(error){circuitOpen=true;clearTimeout(timer);emit('error','Browser storage could not save this change. Editing is paused; export a backup before leaving.');throw error;}
       emit('pending','Saving your changes. Editing resumes after the account confirms them.');schedule(0);
     },
     async signIn(email){const {error}=await client.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}});if(error)throw error;},
     async signOut(){const {error}=await client.auth.signOut({scope:'local'});if(error)throw error;bind(null);},
-    uploadLocal(){if(phase!=='choose')return;cache.approved=true;cache.dirty=true;cache.base=createInitialState();persist();emit('pending','Uploading your journal. Editing resumes after confirmation.');schedule(0);},
+    uploadLocal(){
+      if(phase!=='choose')return;
+      cache.approved=true;cache.dirty=true;cache.base=createInitialState();
+      if(!sameAppearance(cache.journal.preferences,DEFAULT_PREFERENCES)) {
+        cache.journal.preferences.changeId=crypto.randomUUID();
+        keepAppearance(cache.journal.preferences,DEFAULT_PREFERENCES,cache.revision,true);
+      }
+      persist();emit('pending','Uploading your journal. Editing resumes after confirmation.');schedule(0);
+    },
     startEmpty(){if(phase!=='choose')return;const empty=createInitialState();cache={journal:empty,base:null,revision:0,dirty:true,approved:true};persist();apply(empty);emit('pending','Creating your account journal.');schedule(0);},
-    retry(){retryCount=0;refreshRequired=true;if(user&&phase!=='choose'){emit('syncing','Checking the latest account copy.');schedule(0);}},
+    retry(){circuitOpen=false;refreshRequired=true;if(user&&phase!=='choose'){emit('syncing','Checking the latest account copy.');schedule(0);}},
+    recoverableAppearance(){
+      if(!user)return null;
+      const own=readAppearance(user.id);
+      if(own&&!sameAppearance(own.preferences,cache.journal.preferences))return own.preferences;
+      try {
+        const previous=JSON.parse(localCache.getItem(appearanceKey(user.id)+'-recovery'));
+        const preferences=validatePreferences(previous.preferences);
+        if(!sameAppearance(preferences,cache.journal.preferences))return preferences;
+      }catch{/* Try retained full-journal snapshots. */}
+      for(const suffix of ['-before-sync-update-recovery','-before-sync-update','-recovery'])try {
+        const preferences=decodeCache(localCache.getItem(cacheKey(user.id)+suffix)).journal.preferences;
+        if(!sameAppearance(preferences,DEFAULT_PREFERENCES)&&!sameAppearance(preferences,cache.journal.preferences))return preferences;
+      }catch{/* Try another valid snapshot for this account only. */}
+      return null;
+    },
+    recoverAppearance(){
+      const preferences=this.recoverableAppearance();
+      if(!preferences)return false;
+      preferences.changeId=crypto.randomUUID();
+      keepAppearance(preferences,cache.base?.preferences||cache.journal.preferences,cache.revision,true);
+      cache.journal.preferences=preferences;cache.dirty=true;persist();apply(cache.journal);
+      if(!circuitOpen){emit('pending','Recovered appearance is saved here and is syncing to your account.');schedule(0);}
+      else emit('error','Your previous appearance is restored and saved on this device. Sync is paused until the database recovers; choose Retry sync afterward.');
+      return true;
+    },
     previousJournal(){
       if(!user)return null;const key=cacheKey(user.id);
       for(const suffix of ['-before-sync-update-recovery','-before-sync-update','-recovery'])try{return decodeCache(localCache.getItem(key+suffix)).journal;}catch{/* Try another saved snapshot. */}

@@ -8,12 +8,12 @@ import {
   suggestWorkoutWeek, copyWorkoutWeek,
   EXERCISE_GROUPS,exerciseCatalog,scheduledExercise,validateExercise,validateSessionNote,
   WARMUP_TEXT,matchesStarterRoutine,starterWeek,workoutConfigKey,clearWorkoutSchedule,
-} from './core.js?v=8';
-import { createJournalSync } from './cloud-sync.js?v=8';
-import { sameJournal } from './journal-merge.js?v=8';
-import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=8';
-import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=8';
-import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=8';
+} from './core.js?v=9';
+import { createJournalSync } from './cloud-sync.js?v=9';
+import { sameJournal } from './journal-merge.js?v=9';
+import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=9';
+import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=9';
+import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=9';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -112,6 +112,8 @@ function updateSaveStatus() {
   const lock=$('#sync-lock');
   lock.hidden=!syncView.signedIn||syncView.ready;
   $('#sync-lock-message').textContent=syncView.message||'Editing is paused until this device confirms the latest account copy.';
+  $('#sync-error-details').textContent=syncView.error?`${syncView.error.code} · ${syncView.error.stage}`:'';
+  $('#recover-appearance').hidden=!syncView.signedIn||!['error','offline'].includes(syncView.phase)||!journalSync?.recoverableAppearance();
 }
 
 function showSyncAccount() {
@@ -127,6 +129,8 @@ function showSyncAccount() {
       content += `<button class="btn secondary small" data-action="sync-refresh">Sync now</button>`;
     }
     content+=`<p class="subtle-note">Signed-in editing pauses during loading, saving or connection problems. Changes from other devices are combined automatically. Earlier local saves remain available for recovery.</p><div class="sync-actions"><button class="btn secondary small" data-action="backup">Export current journal</button><button class="text-button" data-action="sync-recovery">Export previous local save</button></div>`;
+    if(syncView.error)content+=`<p class="subtle-note">${esc(syncView.error.code)} · ${esc(syncView.error.stage)}</p>`;
+    if(journalSync?.recoverableAppearance())content+=`<button class="btn secondary small" data-action="recover-appearance">Recover saved appearance</button><p class="subtle-note">Restore only your appearance from a saved local copy. Your current food, workout and weight records are kept.</p>`;
     content += `<div class="dialog-footer"><button class="text-button" data-action="sync-signout">Sign out on this device</button></div></div>`;
   }
   openDialog(dialogHeading('One journal. Every device.', 'Keep your food log, profile and weight history together.') + content);
@@ -508,7 +512,7 @@ document.addEventListener('click',event=>{
   const button=event.target.closest('[data-action]');
   if(!button) return;
   const {action,id,date}=button.dataset;
-  if(!syncView.ready&&!['backup','close-dialog','sync-account','sync-upload','sync-empty','sync-refresh','sync-signout','sync-recovery','stop-rest'].includes(action))return toast('Wait until this device is synced before editing.',true);
+  if(!syncView.ready&&!['backup','close-dialog','sync-account','sync-upload','sync-empty','sync-refresh','sync-signout','sync-recovery','recover-appearance','stop-rest'].includes(action))return toast('Wait until this device is synced before editing.',true);
   if(needsSetup&&['pick-food','food-portion','add-suggestion','copy-day','log-weight','pick-exercise','choose-exercise','suggest-workout-week','copy-workout-week','load-starter-routine'].includes(action)){location.hash='goals';toast('Save your profile or restore your backup first.');return;}
   try {
     if(action==='load-starter-routine') {
@@ -576,6 +580,11 @@ document.addEventListener('click',event=>{
     if(action==='sync-upload') { journalSync.uploadLocal();closeDialog();return; }
     if(action==='sync-empty') { journalSync.startEmpty();closeDialog();return; }
     if(action==='sync-refresh') { journalSync.retry();return; }
+    if(action==='recover-appearance') {
+      if(journalSync.recoverAppearance()){closeDialog();toast('Your saved appearance is restored on this device. Current journal records are kept.');}
+      else toast('No different saved appearance was found on this device.',true);
+      return;
+    }
     if(action==='sync-recovery') {
       const previous=journalSync.previousJournal();
       if(previous)backup(previous);else toast('No previous local save is available on this device.',true);
@@ -895,6 +904,10 @@ if(!loadError)save();
 journalSync = createJournalSync({
   applyJournal(journal,{remoteUpdate=false}={}) {
     if (sameJournal(state,journal)) return;
+    if(sameJournal({...state,preferences:{...state.preferences,changeId:''}},{...journal,preferences:{...journal.preferences,changeId:''}})) {
+      state.preferences.changeId=journal.preferences.changeId;
+      return;
+    }
     if(remoteUpdate&&$('#dialog').open&&$('#dialog form:not(#sync-signin-form)'))closeDialog();
     state=validateState(journal);needsSetup=state.profileReady===false;undoState=null;pendingImport=null;
     loadError='';saveFailed=false;render();

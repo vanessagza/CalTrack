@@ -1,6 +1,6 @@
-import { validatePreferences } from './preferences.js?v=8';
-import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=8';
-export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=8';
+import { validatePreferences } from './preferences.js?v=9';
+import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=9';
+export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=9';
 
 export const STORAGE_KEY = 'daily-balance-v1';
 export const TIME_ZONE = 'Asia/Tashkent';

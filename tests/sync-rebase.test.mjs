@@ -61,3 +61,12 @@ test('racing custom target and unit edits stay valid and retain unrelated instru
   assert.equal(result.unit,'reps');assert.equal(result.reps,10);
   assert.equal(result.instructions,'Keep your movement controlled.');
 });
+
+test('old clients stripping appearance intent cannot reset custom settings, while explicit resets work',()=>{
+  const saved=createInitialState();saved.preferences.changeId='saved-color-edit';saved.preferences.theme='dark';saved.preferences.palettes.dark.background='#030509';
+  const older=createInitialState();older.preferences.theme='dark';delete older.preferences.changeId;
+  assert.deepEqual(validateCloudJournal(older,saved).preferences,saved.preferences);
+  older.preferences.changeId='explicit-new-reset';
+  assert.equal(validateCloudJournal(older,saved).preferences.palettes.dark.background,'#111827');
+  assert.equal(validateCloudJournal(older,saved).preferences.changeId,'explicit-new-reset');
+});

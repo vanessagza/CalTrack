@@ -241,13 +241,24 @@ JSON backups; older backups restore with the default appearance.
   order decides the result. You no longer choose between entire journal copies.
   The database revision check rejects stale writes before they can overwrite data.
 - Unchanged checks fetch only the revision and do not upload the journal. Normal
-  edits use one atomic save. Requests have a 15-second overall deadline and failed
-  attempts use increasing delays up to one minute. Hidden tabs stop polling.
+  edits use one atomic save. Database requests have a 45-second overall deadline.
+  A failed attempt stops automatic retries and polling, including on tab focus,
+  so an unavailable service does not cause a retry loop. **Retry sync** makes one
+  fresh attempt. Reconnecting a device also permits one new attempt. Error details
+  show the code and the operation that failed. Hidden tabs stop polling.
   Tabs in the same browser share a writer lock when supported.
 - Older tabs omitting newer appearance or workout fields retain the account's
   known values. Pre-update local snapshots are retained: **Sync devices → Export
   previous local save** downloads one for recovery. Keep your current backup too.
   A failed browser write shows **Not saved** and offers backup export.
+- Appearance changes have a separate per-account local checkpoint. Unsynced
+  colors, sizes and photos can survive a stale full-journal cache on reload.
+  When an older snapshot is available, **Recover saved appearance** restores only
+  appearance and preserves current food, workout and weight records. It saves
+  locally while the database is unavailable and uploads after a successful retry.
+  Current clients identify deliberate appearance edits and resets, preventing
+  older clients stripping that information from silently replacing a custom
+  palette with defaults.
 - Clearing browser data removes cached journals, pending unsynced changes and
   sign-in sessions. Synced account data can be loaded after signing in again.
   Private browsing may discard its local cache when closed.
@@ -279,6 +290,11 @@ ZIP and your JSON backups lets you move the tracker to another static host.
 - **Original journal missing:** sign in with the same email used on the other
   device, or use **Restore backup** on the new address.
   Hosting the source files does not migrate another site's browser storage.
+- **Database request timeout:** editing stays paused and repeated requests stop.
+  If you manage the Supabase project, check its database status and restart the
+  project if it is unresponsive, then click **Retry sync**. Publishing the static
+  website does not restart the database. Keep browser storage and export backups
+  while the service is unavailable.
 - **Opening `index.html` by double-click does not work:** browser modules need
   an HTTP/HTTPS origin. Open the hosted Pages address. For local development,
   you can run `python -m http.server 8000` in this folder and open
@@ -302,6 +318,8 @@ backup recovery, storage failure and responsive layouts. Run
 `python3 tests/cloud-sync-smoke.py` for mocked two-device sync, editing locks,
 automatic conflict handling, same-browser tabs, pending workouts across reloads,
 food logging with custom colors/text/photo, photos and account isolation.
+`python3 tests/sync-outage-smoke.py` reproduces a stalled database, verifies that
+retries stop, and checks appearance-only recovery, reloads and account isolation.
 
 ## References
 
