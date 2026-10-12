@@ -8,12 +8,12 @@ import {
   suggestWorkoutWeek, copyWorkoutWeek,
   EXERCISE_GROUPS,exerciseCatalog,scheduledExercise,validateExercise,validateSessionNote,
   WARMUP_TEXT,matchesStarterRoutine,starterWeek,workoutConfigKey,clearWorkoutSchedule,
-} from './core.js?v=9';
-import { createJournalSync } from './cloud-sync.js?v=9';
-import { sameJournal } from './journal-merge.js?v=9';
-import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=9';
-import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=9';
-import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=9';
+} from './core.js?v=10';
+import { createJournalSync } from './cloud-sync.js?v=10';
+import { sameJournal } from './journal-merge.js?v=10';
+import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=10';
+import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=10';
+import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=10';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -128,7 +128,7 @@ function showSyncAccount() {
     } else {
       content += `<button class="btn secondary small" data-action="sync-refresh">Sync now</button>`;
     }
-    content+=`<p class="subtle-note">Signed-in editing pauses during loading, saving or connection problems. Changes from other devices are combined automatically. Earlier local saves remain available for recovery.</p><div class="sync-actions"><button class="btn secondary small" data-action="backup">Export current journal</button><button class="text-button" data-action="sync-recovery">Export previous local save</button></div>`;
+    content+=`<p class="subtle-note">Changes upload immediately. Other open devices check every five minutes, and returning to a device checks the account before editing resumes. Choose Sync now to check immediately. Changes from other devices are combined automatically. Earlier local saves remain available for recovery.</p><div class="sync-actions"><button class="btn secondary small" data-action="backup">Export current journal</button><button class="text-button" data-action="sync-recovery">Export previous local save</button></div>`;
     if(syncView.error)content+=`<p class="subtle-note">${esc(syncView.error.code)} · ${esc(syncView.error.stage)}</p>`;
     if(journalSync?.recoverableAppearance())content+=`<button class="btn secondary small" data-action="recover-appearance">Recover saved appearance</button><p class="subtle-note">Restore only your appearance from a saved local copy. Your current food, workout and weight records are kept.</p>`;
     content += `<div class="dialog-footer"><button class="text-button" data-action="sync-signout">Sign out on this device</button></div></div>`;

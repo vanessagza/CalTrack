@@ -229,7 +229,7 @@ JSON backups; older backups restore with the default appearance.
   choose **Upload this journal**. Other devices can then load it without restoring
   your backup again. Your original signed-out browser copy is retained.
 - Changes save locally immediately and sync automatically. The site checks for
-  revision updates every 30 seconds while visible and when you return to it. **Sync now**
+  revision updates every five minutes while visible and when you return to it. **Sync now**
   requests a check immediately. Wait for **Synced to your account** before closing
   a device if you need those changes available elsewhere right away.
 - Signed-in editing is enabled only after this device confirms the account copy.
@@ -247,6 +247,11 @@ JSON backups; older backups restore with the default appearance.
   fresh attempt. Reconnecting a device also permits one new attempt. Error details
   show the code and the operation that failed. Hidden tabs stop polling.
   Tabs in the same browser share a writer lock when supported.
+- Connected tabs in the same browser reuse recent account confirmations instead
+  of each requesting an update. A confirmed save updates peer tabs from their
+  shared cache. Pending and older unconfirmed snapshots keep editing paused.
+  Loading an account, returning to a device and choosing **Sync now** still
+  check the server. The focus and visibility events from one return are combined.
 - Older tabs omitting newer appearance or workout fields retain the account's
   known values. Pre-update local snapshots are retained: **Sync devices → Export
   previous local save** downloads one for recovery. Keep your current backup too.

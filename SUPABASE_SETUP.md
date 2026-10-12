@@ -68,6 +68,45 @@ If the database remains unresponsive, use Supabase's **Restart project** control
 wait for it to become healthy again, and choose **Retry sync** in the app. Restart
 controls and database usage are managed in Supabase, not by publishing the site.
 
+### Reducing log ingestion
+
+**Logs Ingest** measures log bytes generated across Supabase services during the
+billing cycle. It is separate from database size, uploaded image storage, CPU
+usage and Logs Query. The existing cycle total will not fall when traffic is
+reduced; compare the new daily growth over the following day or two.
+
+The app uses five-minute background checks, immediate saves and checks when
+returning to a device. Confirmed saves are shared between tabs without an extra
+server read, and account checks are shared across connected tabs in one browser.
+Hidden tabs stop checking; failed sync requests stop all automatic attempts.
+This reduces routine check frequency by 90% compared with the former 30-second
+interval. Refresh every device and close old tabs to load these changes.
+
+To reduce verbose Postgres logging, open **SQL Editor -> New query**, copy the
+**entire** [supabase/reduce-logging.sql](supabase/reduce-logging.sql) script, paste
+it into the editor and click **Run** once. It uses Supabase's supported role
+settings for `postgres`, `authenticator` and `authenticated`, suppresses routine
+statement/duration logging, raises a duration threshold below two seconds, and
+reduces verbose internal messages to warnings. Disabled duration logging and
+existing higher thresholds remain unchanged. Errors, warnings, locks and
+maintenance diagnostics remain available. It reloads the Data API configuration
+and does not change journals, sign-in permissions or RLS policies. Role defaults
+apply to new connections; reconnect the SQL editor to check its own defaults.
+
+This script must be run in Supabase with administrator access; publishing the
+website does not apply it. It does not change Auth, Storage, Realtime or API
+gateway logging, custom audit settings or other services. If daily ingestion
+remains high, use the Supabase Logs Explorer to identify the dominant source
+before making further changes. Log drains and shorter retention do not reduce
+the volume that was ingested.
+
+Supabase's current documentation describes a grace period through the start of
+2027 before log-ingestion billing begins. Plan limits and billing controls remain
+managed by Supabase; app request reductions cannot guarantee an overall quota.
+
+References: [Manage Logs Ingest usage](https://supabase.com/docs/guides/platform/manage-your-usage/logs-ingest)
+and [Postgres log configurations](https://supabase.com/docs/guides/database/postgres/postgres-log-config).
+
 ## 4. Website integration
 
 The Project URL and public key must be added to the website's browser
@@ -121,3 +160,15 @@ node /tmp/caltrack-sql-validation/validate.mjs
 This checks repeatable setup, ownership policies, anonymous access denial and
 atomic revision conflicts using synthetic users. Live email delivery and RLS in
 the actual Supabase project still need validation after the setup is applied.
+
+To validate the log-reduction script using the same local PGlite installation:
+
+```sh
+cp tests/supabase-logging.mjs /tmp/caltrack-sql-validation/logging.mjs
+node /tmp/caltrack-sql-validation/logging.mjs
+```
+
+This checks disabled and higher thresholds, strict message severities, unrelated
+roles, repeated execution and preservation of synthetic journal records. Supabase
+administrator permissions and the live usage trend need verification in the
+actual project.

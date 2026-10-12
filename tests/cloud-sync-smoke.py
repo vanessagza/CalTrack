@@ -348,6 +348,39 @@ with sync_playwright() as p:
     assert not errors,errors
     laptop.screenshot(path='/tmp/caltrack-sync-desktop.png')
     phone.screenshot(path='/tmp/caltrack-sync-mobile.png')
+    # Accelerate the five-minute interval only in this isolated traffic check.
+    for ctx in browser.contexts:ctx.close()
+    rows[BOB]={'user_id':BOB,'journal':copy.deepcopy(fixture),'revision':1}
+    traffic_reads=[]
+    def counted_api(route):
+        if urlsplit(route.request.url).path=='/rest/v1/daily_balance_journals':
+            traffic_reads.append(route.request.frame.page)
+        api(route)
+    traffic_ctx=browser.new_context(color_scheme='dark');traffic_ctx.route(HOST+'/**',counted_api)
+    traffic_ctx.route(url+'cloud-sync.js?*',lambda route:route.fulfill(content_type='application/javascript',
+        body=(ROOT/'cloud-sync.js').read_text().replace('pollMs=300000','pollMs=1000')))
+    traffic_ctx.add_init_script('if(!localStorage.getItem("daily-balance-auth"))localStorage.setItem("daily-balance-auth",JSON.stringify('+json.dumps(session(BOB))+'));')
+    first=traffic_ctx.new_page();first.on('pageerror',lambda error:errors.append(str(error)));first.goto(url);synced(first)
+    second=traffic_ctx.new_page();second.on('pageerror',lambda error:errors.append(str(error)));second.goto(url);synced(second)
+    second.wait_for_timeout(600)
+    read_count=lambda:len(traffic_reads)
+    start=read_count();second.wait_for_timeout(2300)
+    assert 2<=read_count()-start<=3,('Tabs must share routine account checks',read_count()-start)
+    traffic_ctx.close()
+    # A confirmed save reaches the peer through storage without any server read.
+    # Use the normal interval here so a scheduled check is outside this assertion;
+    # returning to the first tab is allowed to check before editing.
+    ack_ctx,first=context(BOB);ack_ctx.route(HOST+'/**',counted_api);synced(first)
+    second=ack_ctx.new_page();second.on('pageerror',lambda error:errors.append(str(error)));second.goto(url);synced(second)
+    first.bring_to_front();first.wait_for_timeout(250);synced(first)
+    start=traffic_reads.count(second)
+    log(first,'egg');synced(first)
+    second.wait_for_function('Object.values(JSON.parse(localStorage.getItem("daily-balance-account-'+BOB+'")).journal.days).some(day=>day.entries.some(entry=>entry.food.id==="egg"))')
+    second.evaluate('location.hash="history"')
+    expect(second.locator('.history-row')).to_have_count(1)
+    assert traffic_reads.count(second)==start,('Confirmed save caused an extra peer read',traffic_reads.count(second)-start)
+    assert not second.evaluate('document.querySelector("#main").inert')
+    assert not errors,errors
     browser.close()
 server.shutdown()
-print('PASS: synced-only editing, automatic device conflicts, one writer across tabs, food logging preserves colors/text/photo, interrupted RGB edits, pending upload reload, recovery, workouts, auth and account isolation (mocked Supabase API)')
+print('PASS: synced-only editing, automatic device conflicts, shared background checks and confirmed saves across tabs, food logging preserves colors/text/photo, interrupted RGB edits, pending upload reload, recovery, workouts, auth and account isolation (mocked Supabase API)')

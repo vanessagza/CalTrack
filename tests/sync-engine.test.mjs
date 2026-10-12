@@ -21,7 +21,7 @@ async function until(predicate){for(let i=0;i<500;i++){if(predicate())return;awa
 function server(journal=fixture()) {
   return {row:{user_id:id,journal:structuredClone(journal),revision:1},reads:[],writes:0,holdRead:null,holdSave:null,fail:false};
 }
-function device(db,{storage=new MemoryStorage(),timeoutMs=500,pollMs=60000}={}) {
+function device(db,{storage=new MemoryStorage(),timeoutMs=500,pollMs}={}) {
   let authListener;
   const views=[],journals=[];
   const client={
@@ -195,6 +195,86 @@ test('idle checks fetch revision only, skip writes, and repeated auth notificati
     assert.ok(db.reads.length>=2&&db.reads.length<=6);assert.equal(db.writes,0);
     assert.ok(sameJournal(d.journal,db.row.journal));
   }finally{d.sync.stop();}
+});
+
+test('routine checks occur every five minutes, while saves and returning to a device remain immediate',async t=>{
+  t.mock.timers.enable({apis:['Date','setTimeout'],now:Date.parse('2026-10-12T12:00:00Z')});
+  const db=server(),d=device(db);
+  const settle=async()=>{for(let i=0;i<30;i++){t.mock.timers.tick(0);await Promise.resolve();}};
+  try {
+    await settle();assert.equal(d.view.ready,true);assert.equal(db.reads.length,1);
+    const recovery=d.storage.getItem(key+'-recovery');
+    for(let i=0;i<4;i++){t.mock.timers.tick(60000);await settle();assert.equal(db.reads.length,1);}
+    t.mock.timers.tick(60000);await settle();
+    assert.equal(db.reads.length,2);assert.equal(db.reads[1],'user_id,revision');assert.equal(db.writes,0);
+    assert.equal(d.storage.getItem(key+'-recovery'),recovery);
+    const changed=structuredClone(d.journal);changed.profile.name='Saved immediately';
+    d.sync.saveLocal(changed);assert.equal(d.view.ready,false);await settle();
+    assert.equal(db.writes,1);assert.equal(db.row.journal.profile.name,'Saved immediately');assert.equal(d.view.ready,true);
+    db.row.journal.profile.height=180;db.row.revision++;
+    document.visibilityState='hidden';document.dispatchEvent(new Event('visibilitychange'));
+    t.mock.timers.tick(900000);await settle();assert.equal(db.reads.length,2);
+    document.visibilityState='visible';document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('focus'));assert.equal(d.view.ready,false);
+    t.mock.timers.tick(149);await settle();assert.equal(db.reads.length,2);
+    t.mock.timers.tick(1);await settle();
+    assert.equal(db.reads.length,4);assert.equal(d.journal.profile.height,180);assert.equal(d.view.ready,true);
+  }finally{document.visibilityState='visible';d.sync.stop();t.mock.timers.reset();}
+});
+
+test('peer tabs reuse a confirmed save without a request, but pending or legacy snapshots stay locked',async()=>{
+  const db=server(),storage=new MemoryStorage(),a=device(db,{storage}),b=device(db,{storage});
+  const deliver=()=>{const event=new Event('storage');event.key=key;event.newValue=storage.getItem(key);window.dispatchEvent(event);};
+  try {
+    await until(()=>a.view.ready&&b.view.ready);
+    const changed=structuredClone(a.journal);changed.profile.name='Confirmed in another tab';
+    let release;db.holdSave=new Promise(r=>release=r);a.sync.saveLocal(changed);
+    await until(()=>db.writes===1);deliver();assert.equal(b.view.ready,false);
+    release();await until(()=>a.view.ready);deliver();await until(()=>b.view.ready);
+    const reads=db.reads.length;deliver();await wait(30);
+    assert.equal(db.reads.length,reads);assert.equal(b.journal.profile.name,'Confirmed in another tab');
+    const legacy=JSON.parse(storage.getItem(key));delete legacy.checkedAt;
+    storage.setItem(key,JSON.stringify(legacy));deliver();assert.equal(b.view.ready,false);
+    await until(()=>a.view.ready&&b.view.ready);assert.ok(db.reads.length>reads);
+  }finally{a.sync.stop();b.sync.stop();}
+});
+
+test('an interrupted peer save is recovered after a brief wait without duplicating a committed write',async t=>{
+  t.mock.timers.enable({apis:['Date','setTimeout'],now:Date.parse('2026-10-12T12:00:00Z')});
+  const settle=async()=>{for(let i=0;i<30;i++){t.mock.timers.tick(0);await Promise.resolve();}};
+  try {
+    for(const alreadyCommitted of [false,true]) {
+      const db=server(),storage=new MemoryStorage(),d=device(db,{storage});
+      await settle();const pending=structuredClone(d.journal);pending.profile.name='Recovered peer change';
+      if(alreadyCommitted){db.row.journal=pending;db.row.revision++;}
+      const snapshot={journal:pending,base:d.journal,revision:1,approved:true,dirty:true,checkedAt:Date.now(),protocol:3};
+      storage.setItem(key,JSON.stringify(snapshot));
+      const event=new Event('storage');event.key=key;event.newValue=storage.getItem(key);window.dispatchEvent(event);
+      assert.equal(d.view.ready,false);assert.equal(d.view.phase,'pending');
+      t.mock.timers.tick(1999);await settle();assert.equal(db.reads.length,1);assert.equal(db.writes,0);
+      t.mock.timers.tick(1);await settle();
+      assert.equal(d.view.ready,true);assert.equal(db.row.journal.profile.name,'Recovered peer change');
+      assert.equal(db.writes,alreadyCommitted?0:1);d.sync.stop();
+    }
+  }finally{t.mock.timers.reset();}
+});
+
+test('a hidden tab receiving a confirmed peer save stays paused and checks the server on return',async()=>{
+  const db=server(),storage=new MemoryStorage(),d=device(db,{storage});
+  try {
+    await until(()=>d.view.ready);
+    document.visibilityState='hidden';document.dispatchEvent(new Event('visibilitychange'));
+    db.row.journal.profile.name='Peer save';db.row.revision++;
+    const snapshot={journal:db.row.journal,base:db.row.journal,revision:db.row.revision,
+      approved:true,dirty:false,checkedAt:Date.now(),protocol:3};
+    storage.setItem(key,JSON.stringify(snapshot));
+    const event=new Event('storage');event.key=key;event.newValue=storage.getItem(key);window.dispatchEvent(event);
+    assert.equal(d.view.ready,false);assert.equal(d.view.phase,'paused');
+    const reads=db.reads.length;await wait(180);assert.equal(db.reads.length,reads);
+    document.visibilityState='visible';document.dispatchEvent(new Event('visibilitychange'));
+    assert.equal(d.view.ready,false);await until(()=>d.view.ready);
+    assert.equal(db.reads.length,reads+1);assert.equal(d.journal.profile.name,'Peer save');
+  }finally{document.visibilityState='visible';d.sync.stop();}
 });
 
 test('an older client omitting appearance restores known colors once, then stays idle',async()=>{
