@@ -76,8 +76,9 @@ python3 tests/cloud-sync-smoke.py
 ```
 
 The browser smoke test uses Python Playwright, `/usr/bin/chromium`, a temporary
-HTTP server and a simulated Supabase API. It checks two devices, offline edits,
-conflicts, per-account caches, email login requests and sign-in callbacks. It does
+HTTP server and a simulated Supabase API. It checks two devices, offline editing
+locks, automatic rebasing, same-browser tabs, settings preservation, per-account
+caches, email login requests and sign-in callbacks. It does
 not send email or prove connectivity to the configured live project.
 
 For SQL/RLS checks using an isolated PostgreSQL-compatible PGlite database:

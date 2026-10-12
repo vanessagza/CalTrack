@@ -46,7 +46,7 @@ extracted folder. Its files should include:
 | `assets/exercises/` | Bundled exercise illustrations |
 | `theme.js` | Light/dark theme switching and saved preference |
 | `preferences.js`, `appearance.js` | Personal colors, text sizes, layout settings and profile photos |
-| `cloud-sync.js`, `journal-merge.js`, `sync-config.js` | Private account sync and public connection settings |
+| `cloud-sync.js`, `journal-merge.js`, `sync-journal.js`, `sync-config.js` | Private account sync, automatic rebasing, schema upgrades and public connection settings |
 | `vendor/` | Locally bundled Supabase browser SDK and licenses |
 | `favicon.svg` | Browser-tab icon |
 | `.nojekyll` | Publishes the files without Jekyll processing |
@@ -186,8 +186,8 @@ types and images, saved routines and completion are included in JSON backups.
 Older Daily Balance backups still restore normally and start with an empty
 workout calendar.
 When signed in, workout plans and checkboxes sync with the rest of your journal.
-Independent exercise changes merge; conflicting edits to the same exercise ask
-you to choose which journal to keep.
+Concurrent exercise changes combine automatically. Each save changes only its
+edited fields on the latest account revision, preserving unrelated settings.
 
 ## Make the app your own
 
@@ -229,18 +229,25 @@ JSON backups; older backups restore with the default appearance.
   choose **Upload this journal**. Other devices can then load it without restoring
   your backup again. Your original signed-out browser copy is retained.
 - Changes save locally immediately and sync automatically. The site checks for
-  updates every 30 seconds while visible and when you return to it. **Sync now**
+  revision updates every 30 seconds while visible and when you return to it. **Sync now**
   requests a check immediately. Wait for **Synced to your account** before closing
   a device if you need those changes available elsewhere right away.
-- Disconnected edits remain on that device until reconnection. Independent record
-  changes can merge; conflicting changes to the same record ask you to choose a
-  copy. Export a backup before replacing either copy. Changes made during an
-  upload are queued for another save.
-- Account loading pauses editing until the saved journal is available. Pending
-  workout plans are kept in the account cache across reloads before cloud upload
-  completes. The browser also retains a previous local snapshot for recovery if
-  its latest saved JSON cannot be read. A failed browser write shows **Not saved**
-  and asks you to export a backup instead of reporting success.
+- Signed-in editing is enabled only after this device confirms the account copy.
+  Loading, saving, connection failures and returning from a hidden tab pause
+  editing. Already-staged changes remain cached across reloads and reconnects.
+  Signed-out journals continue to work locally.
+- Competing saves automatically replay their changed fields on the latest server
+  revision. Independent edits are preserved; for the same field, cloud commit
+  order decides the result. You no longer choose between entire journal copies.
+  The database revision check rejects stale writes before they can overwrite data.
+- Unchanged checks fetch only the revision and do not upload the journal. Normal
+  edits use one atomic save. Requests have a 15-second overall deadline and failed
+  attempts use increasing delays up to one minute. Hidden tabs stop polling.
+  Tabs in the same browser share a writer lock when supported.
+- Older tabs omitting newer appearance or workout fields retain the account's
+  known values. Pre-update local snapshots are retained: **Sync devices → Export
+  previous local save** downloads one for recovery. Keep your current backup too.
+  A failed browser write shows **Not saved** and offers backup export.
 - Clearing browser data removes cached journals, pending unsynced changes and
   sign-in sessions. Synced account data can be loaded after signing in again.
   Private browsing may discard its local cache when closed.
@@ -292,8 +299,9 @@ and merging records and preferences between devices. With Python Playwright
 and Chromium installed, `python3 tests/workout-ui-smoke.py` checks the supplied
 routine, guides, custom exercises/images, repeating and clearing, reloads,
 backup recovery, storage failure and responsive layouts. Run
-`python3 tests/cloud-sync-smoke.py` for mocked two-device sync, delayed account
-loading, pending workout plans across reloads, photos and account isolation.
+`python3 tests/cloud-sync-smoke.py` for mocked two-device sync, editing locks,
+automatic conflict handling, same-browser tabs, pending workouts across reloads,
+food logging with custom colors/text/photo, photos and account isolation.
 
 ## References
 

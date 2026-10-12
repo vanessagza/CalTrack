@@ -314,6 +314,10 @@ html[data-density="compact"] :is(.card-head,.profile-form,.calc-panel,.backup-pa
 
 /* Weekly plans keep every exercise and target visible. */
 .workout-config-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.sync-lock{margin:24px 42px 0;display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap}
+.sync-lock[hidden]{display:none}
+.sync-lock>span{flex:1;min-width:180px}.sync-lock>div{display:flex;gap:14px;flex-wrap:wrap}
+@media(max-width:700px){.sync-lock{margin:18px 18px 0}}
 .workout-preference-footer{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-top:18px}
 .weekly-repeat{display:flex;align-items:center;gap:10px;font-size:var(--body-size);cursor:pointer}
 .weekly-repeat input{width:18px;height:18px;accent-color:var(--green)}

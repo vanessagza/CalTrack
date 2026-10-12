@@ -8,7 +8,7 @@ from functools import partial
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from threading import Thread
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit,parse_qs
 from playwright.sync_api import sync_playwright, expect
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +29,7 @@ held_saves = []
 hold_next_fetch = False
 held_fetches = []
 blocked_accounts = set()
+requests=[]
 
 def token(id):
     encode=lambda value:base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip('=')
@@ -45,6 +46,7 @@ def api(route):
     global hold_next_save,hold_next_fetch
     request=route.request
     path=urlsplit(request.url).path
+    requests.append((path,request.method))
     bearer=request.headers.get('authorization','').removeprefix('Bearer ')
     owner=next((id for id in users if bearer==token(id)),None)
     # JWT expiry can change between requests, so identify synthetic subjects too.
@@ -64,7 +66,11 @@ def api(route):
         if hold_next_fetch:
             hold_next_fetch=False;held_fetches.append((route,owner));return
         if owner not in users:response(route,403,{'code':'42501','message':'Sign in required'})
-        else:response(route,200,[rows[owner]] if owner in rows else [])
+        else:
+            row=rows.get(owner)
+            select=parse_qs(urlsplit(request.url).query).get('select',[''])[0]
+            if row and 'journal' not in select:row={k:row[k] for k in ['user_id','revision']}
+            response(route,200,[row] if row else [])
     elif path=='/rest/v1/rpc/save_daily_balance_journal':
         data=request.post_data_json;expected=data['p_expected_revision']
         if hold_next_save:
@@ -120,40 +126,59 @@ with sync_playwright() as p:
     phone_ctx,phone=context(ALICE,viewport={'width':375,'height':812})
     synced(phone)
     assert phone.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    # A second tab shares the account cache without generating save/refresh storms.
+    peer=laptop_ctx.new_page();peer.on('pageerror',lambda error:errors.append(str(error)))
+    peer.goto(url);synced(peer)
+    writes_before=len([r for r in requests if r[0].endswith('save_daily_balance_journal')])
     hold_next_save=True
     log(laptop,'egg')
     for _ in range(100):
         if held_saves:break
         laptop.wait_for_timeout(50)
     assert held_saves,'Expected a pending upload'
-    log(laptop,'olive-oil')
+    assert laptop.evaluate('document.querySelector("#main").inert')
+    expect(laptop.locator('#theme-toggle')).to_be_disabled()
     held_route,owner,data=held_saves.pop()
     rows[owner]={'user_id':owner,'journal':data['p_journal'],'revision':data['p_expected_revision']+1}
     response(held_route,200,rows[owner]);synced(laptop)
+    synced(peer)
+    assert len([r for r in requests if r[0].endswith('save_daily_balance_journal')])==writes_before+1
+    stable_requests=len(requests);peer.wait_for_timeout(500)
+    assert len(requests)<=stable_requests+2
+    peer.close()
+    log(laptop,'olive-oil');synced(laptop)
     phone.evaluate('window.dispatchEvent(new Event("focus"))')
     expect(phone.locator('#sidebar-name')).to_have_text('Sample Account')
     phone.locator('[data-nav="history"]').click()
     expect(phone.locator('.history-row')).to_have_count(1,timeout=15000)
     phone_ctx.set_offline(True)
-    log(phone,'white-bread')
-    expect(phone.locator('#save-status')).to_have_text('Saved here · offline',timeout=10000)
+    expect(phone.locator('#save-status')).to_have_text('Offline · editing paused',timeout=10000)
+    assert phone.evaluate('document.querySelector("#main").inert')
     log(laptop,'chicken');synced(laptop)
     phone_ctx.set_offline(False);synced(phone)
+    log(phone,'white-bread');synced(phone)
     entries=[entry for day in rows[ALICE]['journal']['days'].values() for entry in day['entries']]
     assert {e['food']['id'] for e in entries}=={'egg','olive-oil','white-bread','chicken'}
     phone.reload();synced(phone)
     phone.locator('[data-nav="history"]').click();expect(phone.locator('.history-row')).to_have_count(1)
-    # Same-field edits must require a choice and leave the server unchanged.
-    phone_ctx.set_offline(True)
+    # Competing saves automatically rebase changed fields; no whole-copy choice.
     phone.locator('[data-nav="goals"]').click();phone.locator('#name').fill('Phone edit')
+    hold_next_save=True
     phone.get_by_role('button',name='Save my goals',exact=True).click()
+    for _ in range(100):
+        if held_saves:break
+        phone.wait_for_timeout(50)
+    assert held_saves
     laptop.locator('[data-nav="goals"]').click();laptop.locator('#name').fill('Laptop edit')
+    laptop.locator('#height').fill('180')
     laptop.get_by_role('button',name='Save my goals',exact=True).click();synced(laptop)
-    phone_ctx.set_offline(False)
-    expect(phone.get_by_role('button',name='Use account copy',exact=True)).to_be_visible(timeout=15000)
-    assert rows[ALICE]['journal']['profile']['name']=='Laptop edit'
-    phone.get_by_role('button',name='Use account copy',exact=True).click();synced(phone)
-    expect(phone.locator('#sidebar-name')).to_have_text('Laptop edit')
+    held_route,owner,data=held_saves.pop();response(held_route,409,{'code':'40001','message':'Conflict'})
+    synced(phone)
+    assert rows[ALICE]['journal']['profile']['name']=='Phone edit'
+    assert rows[ALICE]['journal']['profile']['height']==180
+    assert phone.get_by_role('button',name='Use account copy',exact=True).count()==0
+    laptop.evaluate('window.dispatchEvent(new Event("focus"))');synced(laptop)
+    expect(laptop.locator('#sidebar-name')).to_have_text('Phone edit')
     # A new account must not inherit a different account's cloud records.
     bob_ctx,bob=context(BOB)
     synced(bob);expect(bob.locator('#sidebar-name')).to_have_text('You')
@@ -176,7 +201,7 @@ with sync_playwright() as p:
     callback_ctx=browser.new_context();callback_ctx.route(HOST+'/**',api)
     callback=callback_ctx.new_page();callback.on('pageerror',lambda error:errors.append(str(error)))
     callback.goto(url+'#access_token='+token(ALICE)+'&refresh_token=synthetic-refresh&token_type=bearer&expires_in=3600')
-    synced(callback);expect(callback.locator('#sidebar-name')).to_have_text('Laptop edit')
+    synced(callback);expect(callback.locator('#sidebar-name')).to_have_text('Phone edit')
     assert 'access_token=' not in callback.url
     # Exercise targets and completion must sync, merge and survive reload too.
     laptop.locator('[data-nav="workouts"]').click()
@@ -214,11 +239,14 @@ with sync_playwright() as p:
     blocked_accounts.add(ALICE)
     save_route,owner,data=held_saves.pop();save_route.abort('internetdisconnected')
     laptop.reload()
-    expect(laptop.locator('#save-status')).to_have_text('Saved here · offline',timeout=15000)
-    laptop.locator('#workout-date').fill(future_day)
-    expect(laptop.locator('.week-exercise-list li')).to_have_count(22)
+    expect(laptop.locator('#save-status')).to_have_text('Offline · editing paused',timeout=15000)
+    assert laptop.evaluate('document.querySelector("#main").inert')
+    restored=laptop.evaluate('(key)=>JSON.parse(localStorage.getItem(key))',account_key)
+    assert len([e for day in restored['journal']['workouts']['days'].values() for e in day])==23
     blocked_accounts.remove(ALICE)
     laptop.evaluate('window.dispatchEvent(new Event("focus"))');synced(laptop)
+    laptop.locator('#workout-date').fill(future_day)
+    expect(laptop.locator('.week-exercise-list li')).to_have_count(22)
     assert len([e for day in rows[ALICE]['journal']['workouts']['days'].values() for e in day])==23
     laptop.get_by_role('button',name='Clear week',exact=True).click();synced(laptop)
     laptop.reload();synced(laptop)
@@ -227,9 +255,9 @@ with sync_playwright() as p:
     # A malformed latest cache falls back to the preceding valid local snapshot.
     laptop.evaluate('(key)=>{localStorage.setItem(key+"-recovery",localStorage.getItem(key));localStorage.setItem(key,"broken");}',account_key)
     blocked_accounts.add(ALICE);laptop.reload()
-    expect(laptop.locator('#save-status')).to_have_text('Saved here · offline',timeout=15000)
-    laptop.locator('#workout-date').fill(future_day)
-    expect(laptop.locator('.week-exercise-list li')).to_have_count(0)
+    expect(laptop.locator('#save-status')).to_have_text('Offline · editing paused',timeout=15000)
+    restored=laptop.evaluate('(key)=>JSON.parse(localStorage.getItem(key+"-recovery"))',account_key)
+    assert future_day not in restored['journal']['workouts']['days']
     blocked_accounts.remove(ALICE)
     laptop.evaluate('window.dispatchEvent(new Event("focus"))');synced(laptop)
     # Personal exercise types, instructions, timed targets and completion travel with the account.
@@ -251,18 +279,21 @@ with sync_playwright() as p:
     expect(phone.locator('.workout-detail').last).to_contain_text('hold while breathing normally')
     # Appearance settings belong to the account and merge individual controls.
     laptop.locator('[data-nav="settings"]').click()
-    laptop.locator('#appearance-mode').select_option('dark')
+    laptop.locator('#appearance-mode').select_option('dark');synced(laptop)
     laptop.get_by_label('Background red value',exact=True).fill('4')
+    # A focused palette form must not starve refresh or lose its valid preview.
+    laptop.evaluate('window.dispatchEvent(new Event("focus"))');synced(laptop)
     laptop.get_by_label('Background red value',exact=True).press('Tab');synced(laptop)
     phone.locator('[data-nav="settings"]').click()
     phone.evaluate('window.dispatchEvent(new Event("focus"))')
     expect(phone.locator('#color-background-hex')).to_have_value('#041827',timeout=15000)
     phone_ctx.set_offline(True)
-    phone.locator('#color-subtext-hex').fill('#ffc4dc');phone.locator('#color-subtext-hex').press('Tab')
-    expect(phone.locator('#save-status')).to_have_text('Saved here · offline',timeout=10000)
+    expect(phone.locator('#save-status')).to_have_text('Offline · editing paused',timeout=10000)
+    assert phone.evaluate('document.querySelector("#main").inert')
     laptop.get_by_label('Background blue value',exact=True).fill('9')
     laptop.get_by_label('Background blue value',exact=True).press('Tab');synced(laptop)
     phone_ctx.set_offline(False);synced(phone)
+    phone.locator('#color-subtext-hex').fill('#ffc4dc');phone.locator('#color-subtext-hex').press('Tab');synced(phone)
     preferences=rows[ALICE]['journal']['preferences']
     assert preferences['palettes']['dark']['background']=='#041809'
     assert preferences['palettes']['dark']['subtext']=='#ffc4dc'
@@ -278,6 +309,17 @@ with sync_playwright() as p:
     phone.locator('[data-nav="settings"]').click()
     phone.evaluate('window.dispatchEvent(new Event("focus"))')
     expect(phone.locator('.settings-avatar img')).to_be_visible(timeout=15000)
+    # The reported regression: logging food keeps every saved color, size and photo.
+    laptop.locator('#text-size-body').evaluate('(el)=>{el.value=20;el.dispatchEvent(new Event("change",{bubbles:true}));}')
+    synced(laptop)
+    before_preferences=copy.deepcopy(rows[ALICE]['journal']['preferences'])
+    log(laptop,'egg');synced(laptop)
+    assert rows[ALICE]['journal']['preferences']==before_preferences
+    assert laptop.evaluate('getComputedStyle(document.body).backgroundColor')=='rgb(4, 24, 9)'
+    laptop.reload();synced(laptop)
+    assert laptop.evaluate('getComputedStyle(document.body).backgroundColor')=='rgb(4, 24, 9)'
+    phone.evaluate('window.dispatchEvent(new Event("focus"))');synced(phone)
+    assert phone.evaluate('JSON.parse(localStorage.getItem("daily-balance-account-'+ALICE+'")).journal.preferences')==before_preferences
     # Signing out and switching accounts in the same browser restores that user's settings.
     laptop.locator('[data-action="sync-account"]').first.click()
     laptop.get_by_role('button',name='Sign out on this device',exact=True).click()
@@ -308,4 +350,4 @@ with sync_playwright() as p:
     phone.screenshot(path='/tmp/caltrack-sync-mobile.png')
     browser.close()
 server.shutdown()
-print('PASS: two-device/offline sync, delayed loading guard, pending workout reload, cleared-week persistence, cache recovery, custom exercises and timed targets, color/photo sync, account isolation, auth flow and conflicts (mocked Supabase API)')
+print('PASS: synced-only editing, automatic device conflicts, one writer across tabs, food logging preserves colors/text/photo, interrupted RGB edits, pending upload reload, recovery, workouts, auth and account isolation (mocked Supabase API)')
