@@ -8,14 +8,14 @@ import {
   suggestWorkoutWeek, copyWorkoutWeek,
   EXERCISE_GROUPS,exerciseCatalog,scheduledExercise,validateExercise,validateSessionNote,
   WARMUP_TEXT,matchesStarterRoutine,starterWeek,workoutConfigKey,clearWorkoutSchedule,
-} from './core.js?v=12';
-import { createJournalSync } from './cloud-sync.js?v=12';
-import { sameJournal } from './journal-merge.js?v=12';
-import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=12';
-import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=12';
-import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=12';
-import {exerciseEnergy,exerciseActiveMinutes,exerciseWeightForDate,workoutDayEnergy,dailyCalorieBalance} from './exercise-energy.js?v=12';
-import {exerciseLibraryDashboard,exerciseLibraryResults,exerciseLibraryCount} from './exercise-library-view.js?v=12';
+} from './core.js?v=13';
+import { createJournalSync } from './cloud-sync.js?v=13';
+import { sameJournal } from './journal-merge.js?v=13';
+import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=13';
+import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=13';
+import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=13';
+import {exerciseEnergy,exerciseActiveMinutes,exerciseWeightForDate,workoutDayEnergy,dailyCalorieBalance} from './exercise-energy.js?v=13';
+import {exerciseLibraryDashboard,exerciseLibraryResults,exerciseLibraryCount} from './exercise-library-view.js?v=13';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -407,7 +407,7 @@ function showCustomExerciseEditor(exercise=null) {
       <div class="field full"><label for="custom-feel">What you should feel · optional</label><textarea id="custom-feel" maxlength="1200">${esc(value.feel)}</textarea></div>
       <div class="field full"><label for="custom-easier">Easier variation · optional</label><textarea id="custom-easier" maxlength="1200">${esc(value.easier)}</textarea></div>
       <div class="field full"><label for="custom-avoid">Common mistakes · optional</label><textarea id="custom-avoid" maxlength="1200">${esc(value.avoid)}</textarea></div>
-      <div class="field full"><label for="custom-image">Exercise illustration · optional</label><input id="custom-image" type="file" accept="image/jpeg,image/png,image/webp"><small>Replace or remove the image for any exercise. JPEG, PNG or WebP, up to 10 MB.</small><div id="custom-image-preview">${draftExerciseImage?`<img src="${esc(draftExerciseImage)}" alt="Exercise illustration preview">`:''}</div><button class="text-button" type="button" data-action="remove-exercise-image">Remove illustration</button></div>
+      <div class="field full"><label for="custom-image">Exercise illustration · optional</label><input id="custom-image" type="file" accept="image/jpeg,image/png,image/webp"><small>Replace or remove the image for any exercise. JPEG, PNG or WebP, up to 10 MB.</small><small id="custom-image-status" role="status" aria-live="polite"></small><div id="custom-image-preview">${draftExerciseImage?`<img src="${esc(draftExerciseImage)}" alt="Exercise illustration preview">`:''}</div><button class="text-button" type="button" data-action="remove-exercise-image">Remove illustration</button></div>
       </div><div class="form-error" id="custom-exercise-error" role="alert"></div><div class="dialog-footer">
       ${exercise?`<button class="btn secondary small" type="button" data-action="${exercise.archived?'restore-library-exercise':'delete-library-exercise'}" data-id="${esc(exercise.id)}">${exercise.archived?'Restore to library':'Delete exercise'}</button>`:''}
       ${exercise?.customized?`<button class="text-button" type="button" data-action="reset-library-exercise" data-id="${esc(exercise.id)}">Reset to preset</button>`:''}
@@ -631,7 +631,8 @@ document.addEventListener('click',event=>{
     }
     if(action==='remove-exercise-image') {
       draftExerciseImage='';exerciseImageGeneration++;$('#custom-image-preview').innerHTML='';
-      const form=$('#custom-exercise-form');delete form.dataset.imagePending;form.querySelector('button[type="submit"]').disabled=false;return;
+      const form=$('#custom-exercise-form');delete form.dataset.imagePending;form.querySelector('button[type="submit"]').disabled=false;
+      const input=form.querySelector('#custom-image');input.disabled=false;input.value='';form.querySelector('#custom-image-status').textContent='';return;
     }
     if(action==='delete-library-exercise') {
       const exercise=exerciseCatalog(state.workouts).find(e=>e.id===id);if(!exercise)return;
@@ -827,14 +828,23 @@ document.addEventListener('input',event=>{
 document.addEventListener('change',async event=>{
   const el=event.target;
   try {
-    if(!syncView.ready&&(el.closest('#main')||el.closest('#custom-exercise-form')))return;
     if(el.id==='custom-image') {
       const file=el.files[0];if(!file)return;
-      const form=$('#custom-exercise-form'),journal=state,generation=++exerciseImageGeneration,submit=form.querySelector('button[type="submit"]');
+      const form=el.closest('#custom-exercise-form');if(!form||form!==$('#custom-exercise-form')||!$('#dialog').open)return;
+      // Returning from a native file picker can pause sync before this change.
+      // Prepare only this editor's draft; submitting still requires a ready account.
+      const account=syncView.signedIn?syncView.email:'local',generation=++exerciseImageGeneration,submit=form.querySelector('button[type="submit"]');
+      const current=()=>$('#dialog').open&&form.isConnected&&form===$('#custom-exercise-form')&&generation===exerciseImageGeneration&&account===(syncView.signedIn?syncView.email:'local');
+      const status=form.querySelector('#custom-image-status');status.textContent='Preparing your image…';
+      form.querySelector('#custom-exercise-error').classList.remove('visible');
       el.disabled=true;submit.disabled=true;form.dataset.imagePending='true';
-      try{const image=await prepareExerciseImage(file);if(journal!==state||!form.isConnected||generation!==exerciseImageGeneration)return;draftExerciseImage=image;$('#custom-image-preview').innerHTML=`<img src="${esc(image)}" alt="Exercise illustration preview">`;}
-      finally{el.disabled=false;if(form.isConnected&&generation===exerciseImageGeneration){submit.disabled=false;delete form.dataset.imagePending;}}return;
+      try {
+        const image=await prepareExerciseImage(file);if(!current())return;
+        draftExerciseImage=image;form.querySelector('#custom-image-preview').innerHTML=`<img src="${esc(image)}" alt="Exercise illustration preview">`;status.textContent='Image ready to save.';
+      }catch(error){if(current()){showError('#custom-exercise-error',error);status.textContent='Image could not be opened.';}}
+      finally{if(current()){el.disabled=false;el.value='';submit.disabled=false;delete form.dataset.imagePending;}}return;
     }
+    if(!syncView.ready&&(el.closest('#main')||el.closest('#custom-exercise-form')))return;
     if(el.id==='custom-unit') {
       $('#custom-reps').max=el.value==='minutes'?240:el.value==='seconds'?300:100;
       $('label[for="custom-reps"]').textContent=el.value==='minutes'?'Default minutes per set':el.value==='seconds'?'Default seconds per set':'Default reps per set';

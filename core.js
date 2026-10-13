@@ -1,6 +1,6 @@
-import { validatePreferences } from './preferences.js?v=12';
-import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=12';
-export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=12';
+import { validatePreferences } from './preferences.js?v=13';
+import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=13';
+export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=13';
 
 export const STORAGE_KEY = 'daily-balance-v1';
 export const TIME_ZONE = 'Asia/Tashkent';
@@ -44,6 +44,7 @@ export const EXERCISE_PRESETS = [
   { id:'mobility', name:'Gentle mobility or stretching', group:'Mobility', equipment:'bodyweight', unit:'minutes', cue:'Move your shoulders, ankles and hips gently.' },
 ].map(exercise=>({...exercise,unit:exercise.unit||'reps',...EXERCISE_DETAILS[exercise.id],image:`./assets/exercises/${exercise.id}.svg`}));
 export const EXERCISE_GROUPS=['Lower body','Upper push','Upper pull','Core','Cardio','Mobility'];
+export const EXERCISE_IMAGE_MAX_LENGTH=350000;
 export const DEFAULT_WORKOUT_SETTINGS = { goal:'preserve', experience:'beginner', equipment:'bodyweight', autoRepeat:true,view:'grid' };
 export const DEFAULT_PROFILE = {
   name: 'You', birthDate: '1996-01-01', sex: 'female', height: 170,
@@ -303,7 +304,7 @@ export function validateExercise(value) {
   const restSeconds=numberIn(value.restSeconds??60,0,600,'Rest');
   if(![sets,reps,restSeconds].every(Number.isInteger))throw new Error('Sets, targets and rest must be whole numbers.');
   const image=String(value.image||'');
-  if(image&&image!==builtin?.image&&(image.length>350000||!/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(image)))throw new Error('Use a JPEG, PNG or WebP exercise illustration.');
+  if(image&&image!==builtin?.image&&(image.length>EXERCISE_IMAGE_MAX_LENGTH||!/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(image)))throw new Error('Use a JPEG, PNG or WebP exercise illustration.');
   return {id:value.id,name,group:value.group,equipment:value.equipment,unit:value.unit,unilateral:value.unilateral===true,
     sets,reps,restSeconds,compound:value.compound===true,cue:String(value.cue||'').slice(0,400),instructions:String(value.instructions||'').slice(0,2500),
     feel:String(value.feel||'').slice(0,1200),easier:String(value.easier||'').slice(0,1200),

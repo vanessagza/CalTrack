@@ -1,5 +1,5 @@
-import { exerciseCatalog, EXERCISE_GROUPS, WORKOUT_EQUIPMENT, workoutSuggestion } from './core.js?v=12';
-import { exerciseEnergy } from './exercise-energy.js?v=12';
+import { exerciseCatalog, EXERCISE_GROUPS, WORKOUT_EQUIPMENT, workoutSuggestion } from './core.js?v=13';
+import { exerciseEnergy } from './exercise-energy.js?v=13';
 
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const formatNumber = (value, digits = 0) => Number(value).toLocaleString('en-US', { maximumFractionDigits: digits });

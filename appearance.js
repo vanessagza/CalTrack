@@ -1,4 +1,5 @@
-import { mixColors, accentText } from './preferences.js?v=12';
+import { mixColors, accentText } from './preferences.js?v=13';
+import { EXERCISE_IMAGE_MAX_LENGTH } from './core.js?v=13';
 
 export function applyAppearance(preferences) {
   window.DailyBalanceTheme.setPreference(preferences.theme);
@@ -43,9 +44,17 @@ export async function prepareExerciseImage(file) {
   let bitmap;
   try{bitmap=await createImageBitmap(file);}catch{throw new Error('This illustration could not be opened.');}
   try {
-    const scale=Math.min(1,640/Math.max(bitmap.width,bitmap.height)),canvas=document.createElement('canvas');
-    canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
-    const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);
-    context.drawImage(bitmap,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',0.8);
+    const canvas=document.createElement('canvas');
+    for(const maxEdge of [640,512,384]) {
+      const scale=Math.min(1,maxEdge/Math.max(bitmap.width,bitmap.height));
+      canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+      const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);
+      context.drawImage(bitmap,0,0,canvas.width,canvas.height);
+      for(const quality of [0.8,0.7,0.6,0.5]) {
+        const image=canvas.toDataURL('image/jpeg',quality);
+        if(image.startsWith('data:image/jpeg;base64,')&&image.length<=EXERCISE_IMAGE_MAX_LENGTH)return image;
+      }
+    }
+    throw new Error('This image could not be prepared for saving. Try a smaller image.');
   }finally{bitmap.close();}
 }

@@ -277,27 +277,67 @@ with sync_playwright() as p:
     laptop.locator('#custom-calorie-mode').select_option('manual')
     laptop.locator('#custom-calories').fill('120')
     laptop.locator('#custom-calorie-weight').fill('70')
+    exercise_png=laptop.evaluate('''()=>{const c=document.createElement('canvas');c.width=60;c.height=30;
+      const x=c.getContext('2d');x.fillStyle='#cc99bb';x.fillRect(0,0,60,30);
+      return c.toDataURL('image/png').split(',')[1];}''')
+    exercise_file={'name':'reach.png','mimeType':'image/png','buffer':base64.b64decode(exercise_png)}
+    # Returning from the native file picker checks the account before its file-change
+    # event arrives. Selecting an image must still prepare the unsaved dialog draft.
+    hold_next_fetch=True
+    laptop.evaluate('window.dispatchEvent(new Event("focus"))')
+    expect(laptop.locator('#save-status')).to_have_text('Syncing…')
+    assert laptop.locator('#custom-exercise-form').evaluate('(form)=>form.inert')
+    laptop.locator('#custom-image').set_input_files(exercise_file)
+    expect(laptop.locator('#custom-image-preview img')).to_be_visible()
+    custom_image=laptop.locator('#custom-image-preview img').get_attribute('src')
+    assert custom_image.startswith('data:image/jpeg;base64,')
+    for _ in range(100):
+        if held_fetches:break
+        laptop.wait_for_timeout(50)
+    assert held_fetches,'Expected the file-picker return to check the account'
+    fetch_route,owner=held_fetches.pop()
+    assert owner==ALICE
+    assert 'journal' not in parse_qs(urlsplit(fetch_route.request.url).query)['select'][0]
+    response(fetch_route,200,[{k:rows[owner][k] for k in ['user_id','revision']}]);synced(laptop)
+    expect(laptop.locator('#custom-image-preview img')).to_have_attribute('src',custom_image)
     laptop.get_by_role('button',name='Save exercise type',exact=True).click();synced(laptop)
     custom_id=rows[ALICE]['journal']['workouts']['exercises'][0]['id']
     calibrated=rows[ALICE]['journal']['workouts']['exercises'][0]
     assert calibrated['energy']=={'kcal':120,'weightKg':70,'activeMinutes':1.5}
+    assert calibrated['image']==custom_image
+    laptop.locator('[data-nav="exercises"]').click()
+    custom_card=laptop.locator('.exercise-library-card[data-exercise-id="'+custom_id+'"]')
+    expect(custom_card.locator('img')).to_have_attribute('src',custom_image)
+    custom_card.locator('[data-action="library-guide"]').click()
+    expect(laptop.locator('#dialog .exercise-illustration img')).to_have_attribute('src',custom_image)
+    laptop.locator('#dialog [data-action="close-dialog"]').first.click()
+    laptop.locator('[data-nav="workouts"]').click()
     laptop.locator('#workout-date').fill(workout_day)
     laptop.locator('.workout-session [data-action="pick-exercise"]').click()
     laptop.locator('[data-action="choose-exercise"][data-id="'+custom_id+'"]').click()
     laptop.locator('#workout-form button[type="submit"]').click()
     laptop.get_by_label('Mark Reach and hold complete',exact=True).check();synced(laptop)
     assert rows[ALICE]['journal']['workouts']['days'][workout_day][-1]['reps']==45
+    expect(laptop.locator('.workout-detail').last.locator('img')).to_have_attribute('src',custom_image)
     phone.evaluate('window.dispatchEvent(new Event("focus"))')
     expect(phone.get_by_label('Mark Reach and hold complete',exact=True)).to_be_checked(timeout=15000)
     expect(phone.locator('.workout-detail').last).to_contain_text('hold while breathing normally')
+    expect(phone.locator('.workout-detail').last.locator('img')).to_have_attribute('src',custom_image)
     expect(phone.locator('[data-workout-calorie-credit]')).to_have_text('+'+format(expected_credit+120,'g')+' kcal')
     phone.locator('[data-nav="exercises"]').click()
+    expect(phone.locator('.exercise-library-card[data-exercise-id="'+custom_id+'"] img')).to_have_attribute('src',custom_image)
     phone.locator('.exercise-library-card[data-exercise-id="'+custom_id+'"] [data-action="edit-custom-exercise"]').first.click()
     expect(phone.locator('#custom-description')).to_have_value('A gentle timed overhead reach.')
     expect(phone.locator('#custom-calorie-mode')).to_have_value('manual')
     expect(phone.locator('#custom-calories')).to_have_value('120')
     expect(phone.locator('#custom-calorie-weight')).to_have_value('70')
+    expect(phone.locator('#custom-image-preview img')).to_have_attribute('src',custom_image)
     phone.locator('#dialog [data-action="close-dialog"]').first.click()
+    phone.reload();synced(phone)
+    expect(phone.locator('.exercise-library-card[data-exercise-id="'+custom_id+'"] img')).to_have_attribute('src',custom_image)
+    phone.locator('[data-nav="workouts"]').click();phone.locator('#workout-date').fill(workout_day)
+    expect(phone.locator('.workout-detail').last.locator('img')).to_have_attribute('src',custom_image)
+    phone.locator('[data-nav="exercises"]').click()
     # Preset overrides and illustrations sync without changing the exercise's scheduled identity.
     laptop.locator('[data-nav="exercises"]').click()
     laptop.locator('.exercise-library-card[data-exercise-id="squat"] [data-action="edit-custom-exercise"]').first.click()

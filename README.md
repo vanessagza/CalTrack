@@ -382,6 +382,9 @@ retries stop, and checks appearance-only recovery, reloads and account isolation
 credits, edited sets/reps/duration previews, day-specific remaining calories,
 historical weights, custom exercises, copying, moving, clearing/Undo, budget
 changes, reloads, saved appearance and mobile layout.
+`python3 tests/exercise-image-ui-smoke.py` checks image upload drafts, cancellation,
+removal, retrying invalid files, detailed-photo compression and reloads. The cloud
+sync smoke also checks choosing an image while returning from the native file picker.
 
 ## References
 
