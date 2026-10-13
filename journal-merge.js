@@ -1,5 +1,6 @@
-import { validateState, validateWorkouts } from './core.js?v=11';
-import { validatePreferences } from './preferences.js?v=11';
+import { validateState, validateWorkouts } from './core.js?v=12';
+import { validatePreferences } from './preferences.js?v=12';
+import { validateCloudJournal } from './sync-journal.js?v=12';
 
 const canonical = value => JSON.stringify(value, function (key, item) {
   return item && typeof item === 'object' && !Array.isArray(item)
@@ -40,13 +41,19 @@ export function mergeJournals(base, local, remote, {preferLocal=false}={}) {
   // the latest server revision changes only edited fields; commit order resolves
   // simultaneous edits to the same field without replacing either whole journal.
   const resolve=preferLocal ? (b,l,r)=>sameJournal(b,l)?r:l : choice;
+  base=validateState(base);
+  local=validateCloudJournal(local,base);remote=validateCloudJournal(remote,base);
   const mergeFields=(b,l,r)=>fields(b,l,r,resolve);
   const mergeExercise=(b,l,r)=>{
     const result=mergeFields(b,l,r);
-    // A target and its unit are one operation; combining minutes from one
-    // device with reps from another could produce an invalid exercise.
-    if(preferLocal&&b&&l&&r&&l.unit!==r.unit&&(l.unit!==b.unit||l.reps!==b.reps)) {
-      result.unit=l.unit;result.reps=l.reps;
+    // Calories are calibrated to the default volume and dimension. Concurrent
+    // edits to those values form one operation, while unrelated guide edits
+    // can still merge independently.
+    const calibration=exercise=>({unit:exercise.unit,unilateral:exercise.unilateral,group:exercise.group,sets:exercise.sets,reps:exercise.reps,energy:exercise.energy});
+    if(b&&l&&r) {
+      const [baseCalibration,localCalibration,remoteCalibration]=[b,l,r].map(calibration);
+      if(!sameJournal(baseCalibration,localCalibration)&&!sameJournal(baseCalibration,remoteCalibration)&&
+        (b.energy||l.energy||r.energy||l.unit!==r.unit))Object.assign(result,resolve(baseCalibration,localCalibration,remoteCalibration));
     }
     return result;
   };
@@ -90,7 +97,7 @@ export function mergeJournals(base, local, remote, {preferLocal=false}={}) {
     foods: keyed(base.foods, local.foods, remote.foods, 'id', mergeFields),
     weights: keyed(base.weights, local.weights, remote.weights, 'date',resolve),
     days,
-    workouts: { settings:mergeFields(...workouts.map(workout => workout.settings)), days:workoutDays,
+    workouts: { libraryVersion:1,settings:mergeFields(...workouts.map(workout => workout.settings)), days:workoutDays,
       exercises:keyed(...workouts.map(w=>w.exercises),'id',mergeExercise),
       notes:Object.fromEntries([...new Set(workouts.flatMap(w=>Object.keys(w.notes)))].flatMap(date=>{
         const note=mergeFields(...workouts.map(w=>w.notes[date]));return note===undefined?[]:[[date,note]];

@@ -126,9 +126,10 @@ with sync_playwright() as p:
     # Exercise library editing / archive keeps scheduled custom movements intact.
     page.get_by_role('button',name='Exercise library',exact=True).click()
     page.locator('[data-action="edit-custom-exercise"][data-id="'+custom_id+'"]').click()
-    page.get_by_role('button',name='Archive exercise',exact=True).click()
-    page.locator('#dialog [data-action="close-dialog"]').click()
+    page.get_by_role('button',name='Delete exercise',exact=True).click()
+    page.locator('[data-action="confirm-delete-library-exercise"]').click()
     assert state()['workouts']['exercises'][0]['archived']
+    page.locator('[data-nav="workouts"]').click()
     expect(page.locator('.workout-detail').last).to_contain_text('Low step-up')
     # Desktop/tablet/phone with the largest personal text sizes and all targets visible.
     page.locator('[data-nav="settings"]').click()

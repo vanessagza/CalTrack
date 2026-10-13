@@ -2,6 +2,7 @@
 import base64
 import copy
 import json
+import re
 import subprocess
 import time
 from functools import partial
@@ -272,8 +273,14 @@ with sync_playwright() as p:
     laptop.locator('#custom-unit').select_option('seconds')
     laptop.locator('#custom-reps').fill('45')
     laptop.locator('#custom-instructions').fill('Reach gently and hold while breathing normally.')
+    laptop.locator('#custom-description').fill('A gentle timed overhead reach.')
+    laptop.locator('#custom-calorie-mode').select_option('manual')
+    laptop.locator('#custom-calories').fill('120')
+    laptop.locator('#custom-calorie-weight').fill('70')
     laptop.get_by_role('button',name='Save exercise type',exact=True).click();synced(laptop)
     custom_id=rows[ALICE]['journal']['workouts']['exercises'][0]['id']
+    calibrated=rows[ALICE]['journal']['workouts']['exercises'][0]
+    assert calibrated['energy']=={'kcal':120,'weightKg':70,'activeMinutes':1.5}
     laptop.locator('#workout-date').fill(workout_day)
     laptop.locator('.workout-session [data-action="pick-exercise"]').click()
     laptop.locator('[data-action="choose-exercise"][data-id="'+custom_id+'"]').click()
@@ -283,6 +290,81 @@ with sync_playwright() as p:
     phone.evaluate('window.dispatchEvent(new Event("focus"))')
     expect(phone.get_by_label('Mark Reach and hold complete',exact=True)).to_be_checked(timeout=15000)
     expect(phone.locator('.workout-detail').last).to_contain_text('hold while breathing normally')
+    expect(phone.locator('[data-workout-calorie-credit]')).to_have_text('+'+format(expected_credit+120,'g')+' kcal')
+    phone.locator('[data-nav="exercises"]').click()
+    phone.locator('.exercise-library-card[data-exercise-id="'+custom_id+'"] [data-action="edit-custom-exercise"]').first.click()
+    expect(phone.locator('#custom-description')).to_have_value('A gentle timed overhead reach.')
+    expect(phone.locator('#custom-calorie-mode')).to_have_value('manual')
+    expect(phone.locator('#custom-calories')).to_have_value('120')
+    expect(phone.locator('#custom-calorie-weight')).to_have_value('70')
+    phone.locator('#dialog [data-action="close-dialog"]').first.click()
+    # Preset overrides and illustrations sync without changing the exercise's scheduled identity.
+    laptop.locator('[data-nav="exercises"]').click()
+    laptop.locator('.exercise-library-card[data-exercise-id="squat"] [data-action="edit-custom-exercise"]').first.click()
+    laptop.locator('#custom-name').fill('Account squat')
+    laptop.locator('#custom-description').fill('My controlled squat practice.')
+    laptop.locator('#custom-instructions').fill('Squat with controlled depth and steady breathing.')
+    laptop.locator('#custom-sets').fill('4');laptop.locator('#custom-reps').fill('12')
+    laptop.locator('#custom-calorie-mode').select_option('manual')
+    laptop.locator('#custom-calories').fill('90');laptop.locator('#custom-calorie-weight').fill('70')
+    exercise_png=laptop.evaluate('''()=>{const c=document.createElement('canvas');c.width=60;c.height=30;
+      const x=c.getContext('2d');x.fillStyle='#cc99bb';x.fillRect(0,0,60,30);
+      return c.toDataURL('image/png').split(',')[1];}''')
+    laptop.locator('#custom-image').set_input_files({'name':'squat.png','mimeType':'image/png','buffer':base64.b64decode(exercise_png)})
+    expect(laptop.locator('#custom-image-preview img')).to_be_visible()
+    laptop.locator('#custom-exercise-form button[type="submit"]').click();synced(laptop)
+    phone.evaluate('window.dispatchEvent(new Event("focus"))')
+    preset_card=phone.locator('.exercise-library-card[data-exercise-id="squat"]')
+    expect(preset_card).to_contain_text('Account squat',timeout=15000)
+    expect(preset_card).to_contain_text('My controlled squat practice.')
+    expect(preset_card.locator('img')).to_have_attribute('src',re.compile(r'^data:image/jpeg;base64,'))
+    phone.locator('[data-nav="workouts"]').click();phone.locator('#workout-date').fill(workout_day)
+    expect(phone.get_by_label('Mark Account squat complete',exact=True)).to_be_checked()
+    expect(phone.locator('[data-workout-calorie-credit]')).to_have_text('+210 kcal')
+    laptop.reload();synced(laptop)
+    laptop.locator('[data-nav="workouts"]').click();laptop.locator('#workout-date').fill(workout_day)
+    expect(laptop.locator('[data-workout-calorie-credit]')).to_have_text('+210 kcal')
+    # Clearing a preset image remains empty on the other device instead of reviving its bundled image.
+    laptop.locator('[data-nav="exercises"]').click()
+    laptop.locator('.exercise-library-card[data-exercise-id="squat"] [data-action="edit-custom-exercise"]').first.click()
+    laptop.locator('[data-action="remove-exercise-image"]').click()
+    laptop.locator('#custom-exercise-form button[type="submit"]').click();synced(laptop)
+    phone.locator('[data-nav="exercises"]').click()
+    phone.evaluate('window.dispatchEvent(new Event("focus"))')
+    expect(phone.locator('.exercise-library-card[data-exercise-id="squat"] img')).to_have_attribute('src','./assets/exercises/custom.svg',timeout=15000)
+    # Deleting and Undoing a never-customized preset must sync the original definition.
+    laptop.locator('.exercise-library-card[data-exercise-id="biceps-curl"] [data-action="delete-library-exercise"]').click()
+    laptop.locator('[data-action="confirm-delete-library-exercise"]').click();synced(laptop)
+    phone.evaluate('window.dispatchEvent(new Event("focus"))')
+    expect(phone.locator('.exercise-library-card[data-exercise-id="biceps-curl"]')).to_have_count(0,timeout=15000)
+    laptop.get_by_role('button',name='Undo',exact=True).click();synced(laptop)
+    phone.evaluate('window.dispatchEvent(new Event("focus"))')
+    expect(phone.locator('.exercise-library-card[data-exercise-id="biceps-curl"]')).to_be_visible(timeout=15000)
+    assert not any(e['id']=='biceps-curl' and e['archived'] for e in rows[ALICE]['journal']['workouts']['exercises'])
+    # Reset restores builtin images, instructions and automatic calories on both devices.
+    laptop.locator('.exercise-library-card[data-exercise-id="squat"] [data-action="edit-custom-exercise"]').first.click()
+    laptop.locator('[data-action="reset-library-exercise"]').click();synced(laptop)
+    phone.evaluate('window.dispatchEvent(new Event("focus"))')
+    expect(phone.locator('.exercise-library-card[data-exercise-id="squat"]')).to_contain_text('Bodyweight squat',timeout=15000)
+    expect(phone.locator('.exercise-library-card[data-exercise-id="squat"] img')).to_have_attribute('src','./assets/exercises/squat.svg')
+    phone.locator('[data-nav="workouts"]').click();phone.locator('#workout-date').fill(workout_day)
+    expect(phone.locator('[data-workout-calorie-credit]')).to_have_text('+'+format(expected_credit+120,'g')+' kcal')
+    # A schema-aware backup deliberately replaces an account library with an empty one.
+    # Historical workout snapshots still retain their calibrated custom calories.
+    empty_library_backup=copy.deepcopy(rows[ALICE]['journal'])
+    assert empty_library_backup['workouts']['libraryVersion']==1
+    empty_library_backup['workouts']['exercises']=[]
+    laptop.locator('[data-nav="goals"]').click()
+    laptop.locator('#backup-file').set_input_files({'name':'empty-library.json','mimeType':'application/json',
+                                                'buffer':json.dumps(empty_library_backup).encode()})
+    laptop.locator('#dialog').get_by_role('button',name='Restore backup',exact=True).click();synced(laptop)
+    assert rows[ALICE]['journal']['workouts']['exercises']==[]
+    phone.reload();synced(phone)
+    phone.locator('[data-nav="exercises"]').click()
+    expect(phone.locator('.exercise-library-card[data-source="custom"]')).to_have_count(0)
+    phone.locator('[data-nav="workouts"]').click();phone.locator('#workout-date').fill(workout_day)
+    expect(phone.get_by_label('Mark Reach and hold complete',exact=True)).to_be_checked()
+    expect(phone.locator('[data-workout-calorie-credit]')).to_have_text('+'+format(expected_credit+120,'g')+' kcal')
     # Appearance settings belong to the account and merge individual controls.
     laptop.locator('[data-nav="settings"]').click()
     laptop.locator('#appearance-mode').select_option('dark');synced(laptop)
@@ -389,4 +471,4 @@ with sync_playwright() as p:
     assert not errors,errors
     browser.close()
 server.shutdown()
-print('PASS: synced-only editing, automatic device conflicts, shared background checks and confirmed saves across tabs, food logging preserves colors/text/photo, interrupted RGB edits, pending upload reload, recovery, workouts, auth and account isolation (mocked Supabase API)')
+print('PASS: synced-only editing, automatic device conflicts, shared background checks and confirmed saves across tabs, food logging preserves colors/text/photo, interrupted RGB edits, pending upload reload, recovery, workouts/manual calorie calibrations/preset images and overrides, auth and account isolation (mocked Supabase API)')

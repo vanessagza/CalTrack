@@ -42,6 +42,7 @@ test('legacy clients omitting appearance and new workout fields do not reset the
   const previous=createInitialState();previous.preferences.palettes.dark.background='#030509';previous.preferences.typography.body=20;
   previous.workouts.notes['2026-10-12']={title:'Legs',goal:'Practice',note:'Go slowly'};
   const older=structuredClone(previous);delete older.preferences;delete older.workouts.notes;delete older.workouts.template;
+  delete older.workouts.libraryVersion;
   older.days['2026-10-12']={entries:[newEntry(previous.foods[0],1,'portion','Lunch','older-food')],note:''};
   const result=validateCloudJournal(older,previous);
   assert.deepEqual(result.preferences,previous.preferences);assert.deepEqual(result.workouts.notes,previous.workouts.notes);

@@ -10,6 +10,8 @@ energy formulas, daily history, weight journal, and backup/restore are included.
 The **Workouts** section adds a calendar listing every exercise, 28 presets,
 personal exercise types, illustrated instructions, editable target ranges and
 rest periods, repeating routines, and completion checkboxes.
+The **Exercises** dashboard brings presets and personal exercises together with
+search, filters, editable images and instructions, and your own calorie estimates.
 Use the **Dark mode** switch in the top bar to choose a light or dark theme.
 It follows your device's theme initially and remembers your choice in this browser.
 Use **Sync devices** to sign into your journal on your laptop and phone once
@@ -43,6 +45,7 @@ extracted folder. Its files should include:
 | `app.js` | Website interactions and browser storage |
 | `core.js` | Food and exercise catalogs, formulas and validation |
 | `workout-plan.js`, `workout-view.js` | Starter routine, technique instructions and workout dashboard |
+| `exercise-library-view.js`, `exercise-energy.js` | Exercise dashboard and completed-workout calorie adjustments |
 | `assets/exercises/` | Bundled exercise illustrations |
 | `theme.js` | Light/dark theme switching and saved preference |
 | `preferences.js`, `appearance.js` | Personal colors, text sizes, layout settings and profile photos |
@@ -147,13 +150,17 @@ and Thursday), or three for regular trainees (Monday, Wednesday and Friday).
 It preserves occupied days and skips past dates. Changing preferences preserves
 existing sessions. The supplied preservation routine keeps its original targets.
 
-Use **Create a new exercise** to save a reusable name, type, equipment, default
-sets and target, target unit (reps/seconds/minutes), rest, per-side option,
-instructions, common mistakes and an optional image. **Exercise library** shows
-all presets and personal exercises, with guides and controls to edit or archive
-your own types. Archiving hides a type from the picker while preserving scheduled
-entries. Uploaded JPEG, PNG and WebP illustrations retain their proportions and
-save privately with the exercise. Built-in guides use bundled schematic images.
+Open **Exercises** to browse your library. Search names, muscles or instructions,
+and filter by type, equipment, preset/custom source and active/archived status.
+Each card shows its image, default targets, rest and estimated calorie burn.
+Use **Create an exercise** or **Edit exercise** to change the name, description,
+type, equipment, targets, instructions, technique tips, calories and image for
+any exercise, including presets. **Add to workout** schedules it on your selected
+workout date. **Delete exercise** archives it while preserving scheduled entries
+and their calorie credits; use the Archived filter to restore it. Preset edits
+can be reset in the editor. Uploaded JPEG, PNG and WebP illustrations retain
+their proportions and save privately with the exercise. Removing an image shows
+a generic illustration. Built-in guides use bundled schematic images.
 
 Reorder exercises with the up/down controls, edit session titles and goals, and
 start the rest timer from any resistance exercise. **Save week as my routine**
@@ -198,7 +205,18 @@ credit − logged food**. Saved macro targets retain their base values. Workouts
 show estimates for each exercise and the selected day's calorie balance; links
 open the matching food log or workout date.
 
-The estimate is **(MET − 1) × 3.5 × body weight in kg ÷ 200 × active minutes**.
+In **Exercises**, create or edit an exercise and choose **Set my own calories**
+under **Calorie estimate**. Enter the estimated extra calories burned for all
+of the default sets and targets, plus the body weight for that estimate. For
+example, 100 kcal for 2 sets of 10 reps at 70 kg becomes 200 kcal for 4 sets of
+10 reps at the same weight. The saved calibration scales as **reference kcal ×
+current weight ÷ reference weight × active minutes ÷ reference active minutes**.
+Zero calories is allowed. The live preview shows the result; checking the
+scheduled exercise adds it to that day's budget. Library calorie edits update
+existing workouts immediately, and your calorie settings travel with backups
+and private sync. Choose **Automatic estimate** to return to the formula below.
+
+The automatic estimate is **(MET − 1) × 3.5 × body weight in kg ÷ 200 × active minutes**.
 Subtracting one MET estimates energy above resting. Preset activities have
 different intensity and repetition-pace assumptions, informed by categories in
 the [Adult Compendium of Physical Activities](https://pacompendium.com/).
@@ -207,7 +225,7 @@ These are planning assumptions, not measured calorie costs of individual lifts.
 Repetition targets use sets × reps × 3–4 seconds per rep; timed targets use their
 seconds or minutes directly. Per-side targets count both sides. Sets and target
 ranges use their midpoint; enter exact counts to describe what you did. Custom
-exercises use a type-based estimate. The exercise editor previews recalculations
+exercises without a calorie calibration use a type-based estimate. The exercise editor previews recalculations
 as you change targets. Rest and warm-up time are not credited, and lifting load
 does not directly change the intensity assumption. Real pace and effort vary.
 

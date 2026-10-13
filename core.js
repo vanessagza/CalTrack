@@ -1,6 +1,6 @@
-import { validatePreferences } from './preferences.js?v=11';
-import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=11';
-export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=11';
+import { validatePreferences } from './preferences.js?v=12';
+import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=12';
+export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=12';
 
 export const STORAGE_KEY = 'daily-balance-v1';
 export const TIME_ZONE = 'Asia/Tashkent';
@@ -284,8 +284,16 @@ export function validateWorkoutSettings(value = DEFAULT_WORKOUT_SETTINGS) {
   return settings;
 }
 
+export function validateExerciseEnergy(value) {
+  if(value==null)return null;
+  if(typeof value!=='object'||Array.isArray(value))throw new Error('Exercise calories are invalid.');
+  if(['kcal','weightKg','activeMinutes'].some(key=>!['number','string'].includes(typeof value[key])))throw new Error('Exercise calories and reference values must be numbers.');
+  return {kcal:numberIn(value.kcal,0,10000,'Exercise calories'),weightKg:numberIn(value.weightKg,30,250,'Reference body weight'),
+    activeMinutes:numberIn(value.activeMinutes,1/60,4800,'Reference active minutes')};
+}
 export function validateExercise(value) {
-  if(!value||!/^custom-exercise-[\w-]{1,80}$/.test(value.id))throw new Error('Custom exercise ID is invalid.');
+  const builtin=EXERCISE_PRESETS.find(exercise=>exercise.id===value?.id);
+  if(!value||typeof value.id!=='string'||(!builtin&&!/^custom-exercise-[\w-]{1,80}$/.test(value.id)))throw new Error('Exercise ID is invalid.');
   const name=String(value.name||'').trim().slice(0,100);
   if(!name)throw new Error('Give your exercise a name.');
   if(!EXERCISE_GROUPS.includes(value.group))throw new Error('Choose an exercise type.');
@@ -295,24 +303,33 @@ export function validateExercise(value) {
   const restSeconds=numberIn(value.restSeconds??60,0,600,'Rest');
   if(![sets,reps,restSeconds].every(Number.isInteger))throw new Error('Sets, targets and rest must be whole numbers.');
   const image=String(value.image||'');
-  if(image&&(image.length>350000||!/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(image)))throw new Error('Use a JPEG, PNG or WebP exercise illustration.');
+  if(image&&image!==builtin?.image&&(image.length>350000||!/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(image)))throw new Error('Use a JPEG, PNG or WebP exercise illustration.');
   return {id:value.id,name,group:value.group,equipment:value.equipment,unit:value.unit,unilateral:value.unilateral===true,
-    sets,reps,restSeconds,compound:value.compound===true,instructions:String(value.instructions||'').slice(0,2500),
-    muscles:String(value.muscles||'').slice(0,160),avoid:String(value.avoid||'').slice(0,1200),image,archived:value.archived===true};
+    sets,reps,restSeconds,compound:value.compound===true,cue:String(value.cue||'').slice(0,400),instructions:String(value.instructions||'').slice(0,2500),
+    feel:String(value.feel||'').slice(0,1200),easier:String(value.easier||'').slice(0,1200),
+    muscles:String(value.muscles||'').slice(0,160),avoid:String(value.avoid||'').slice(0,1200),image,archived:value.archived===true,
+    energy:validateExerciseEnergy(value.energy),...(builtin?{reset:value.reset===true}:{})};
 }
-export function exerciseCatalog(workouts) {return [...EXERCISE_PRESETS,...(workouts.exercises||[])];}
+export function exerciseCatalog(workouts) {
+  const saved=new Map((workouts.exercises||[]).map(exercise=>[exercise.id,exercise]));
+  return [...EXERCISE_PRESETS.map(exercise=>saved.has(exercise.id)&&!saved.get(exercise.id).reset?{...exercise,...saved.get(exercise.id),customized:true}:exercise),
+    ...(workouts.exercises||[]).filter(exercise=>!EXERCISE_PRESETS.some(preset=>preset.id===exercise.id))];
+}
 export function scheduledExercise(entry,workouts) {
-  const exercise=exerciseCatalog(workouts).find(e=>e.id===entry.exerciseId)||entry.exercise;
-  return {...exercise,...entry.exercise};
+  const exercise=exerciseCatalog(workouts).find(e=>e.id===entry.exerciseId);
+  // A library edit updates the guide and calories immediately. Existing targets
+  // retain their original dimension so ten seconds never becomes ten minutes.
+  return {...entry.exercise,...exercise,...(entry.exercise?{unit:entry.exercise.unit,unilateral:entry.exercise.unilateral}:{}),
+    energy:exercise?exercise.energy??null:entry.exercise?.energy??null};
 }
 export function validateWorkoutEntry(value,catalog=EXERCISE_PRESETS) {
   if (!value || typeof value !== 'object') throw new Error('Workout exercise is missing.');
   let preset = catalog.find(e => e.id === value.exerciseId);
   let snapshot;
-  if(value.exercise&&value.exerciseId.startsWith('custom-exercise-')) {
+  if(value.exercise) {
     const checked=validateExercise({...value.exercise,image:''});
     if(checked.id!==value.exerciseId)throw new Error('Exercise snapshot is invalid.');
-    snapshot={id:checked.id,name:checked.name,group:checked.group,equipment:checked.equipment,unit:checked.unit,unilateral:checked.unilateral};
+    snapshot={id:checked.id,name:checked.name,group:checked.group,equipment:checked.equipment,unit:checked.unit,unilateral:checked.unilateral,energy:checked.energy};
     preset={...preset,...snapshot};
   }
   if (!preset) throw new Error('Choose an exercise from the preset list.');
@@ -326,7 +343,7 @@ export function validateWorkoutEntry(value,catalog=EXERCISE_PRESETS) {
   if (![sets,setsMax,reps,repsMax,restSeconds].every(Number.isInteger)) throw new Error('Sets, targets and rest must be whole numbers.');
   const load = value.load === '' || value.load == null ? null : numberIn(value.load, 0, 500, 'Exercise weight');
   if (value.completed !== undefined && typeof value.completed !== 'boolean') throw new Error('Exercise completion is invalid.');
-  if(preset.id.startsWith('custom-exercise-')&&!snapshot)snapshot={id:preset.id,name:preset.name,group:preset.group,equipment:preset.equipment,unit:preset.unit,unilateral:preset.unilateral};
+  if(!snapshot)snapshot={id:preset.id,name:preset.name,group:preset.group,equipment:preset.equipment,unit:preset.unit,unilateral:preset.unilateral===true,energy:validateExerciseEnergy(preset.energy)};
   return { id:value.id, exerciseId:preset.id, sets,setsMax,reps,repsMax,restSeconds,load,...(snapshot?{exercise:snapshot}:{}),
     note:String(value.note || '').slice(0, 400), completed:value.completed === true };
 }
@@ -340,17 +357,25 @@ export function validateWorkouts(value) {
   // Version 1 journals from before the planner have no workout records.
   if (value === undefined) value={settings:{...DEFAULT_WORKOUT_SETTINGS},days:{}};
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Workout history is invalid.');
+  if(value.libraryVersion!==undefined&&value.libraryVersion!==1)throw new Error('Exercise library version is unsupported.');
   const settings = validateWorkoutSettings(value.settings);
-  if(value.exercises!==undefined&&(!Array.isArray(value.exercises)||value.exercises.length>200))throw new Error('Exercise library is invalid.');
-  const exercises=(value.exercises||[]).map(validateExercise),catalog=[...EXERCISE_PRESETS,...exercises];
+  if(value.exercises!==undefined&&(!Array.isArray(value.exercises)||value.exercises.length>200+EXERCISE_PRESETS.length))throw new Error('Exercise library is invalid.');
+  const exercises=(value.exercises||[]).map(validateExercise),catalog=exerciseCatalog({exercises});
+  if(exercises.filter(exercise=>exercise.id.startsWith('custom-exercise-')).length>200)throw new Error('Keep at most 200 custom exercises in the library.');
   if(new Set(exercises.map(e=>e.id)).size!==exercises.length)throw new Error('Exercise library IDs must be unique.');
+  const checkedEntry=value=>{
+    // Journals saved before definition editing have no built-in snapshot.
+    // Infer that old entry's units from the original bundled definition.
+    const legacy=!value?.exercise&&exercises.some(e=>e.id===value?.exerciseId)?EXERCISE_PRESETS.find(e=>e.id===value.exerciseId):null;
+    return validateWorkoutEntry(legacy?{...value,exercise:legacy}:value,catalog);
+  };
   if (!value.days || typeof value.days !== 'object' || Array.isArray(value.days) || Object.keys(value.days).length > 10000) throw new Error('Workout history is invalid.');
   const days = {};
   const ids = new Set();
   for (const [date, entries] of Object.entries(value.days)) {
     if (!isDateKey(date) || !Array.isArray(entries) || entries.length > 50) throw new Error('Workout day is invalid.');
     days[date] = entries.map(value => {
-      const entry = validateWorkoutEntry(value,catalog);
+      const entry = checkedEntry(value);
       if (ids.has(entry.id)) throw new Error('Workout exercises must have distinct IDs.');
       ids.add(entry.id);
       return entry;
@@ -365,9 +390,9 @@ export function validateWorkouts(value) {
   if(value.template!=null) {
     const t=value.template;
     if(!/^(preserve|build|strength|fitness):(beginner|regular):(bodyweight|dumbbells|gym)$/.test(t.config)||!Array.isArray(t.days)||t.days.length!==7||!Array.isArray(t.notes)||t.notes.length!==7)throw new Error('Weekly routine is invalid.');
-    template={config:t.config,days:t.days.map(entries=>{if(!Array.isArray(entries)||entries.length>50)throw new Error('Weekly routine is invalid.');return entries.map(entry=>({...validateWorkoutEntry(entry,catalog),completed:false}));}),notes:t.notes.map(validateSessionNote)};
+    template={config:t.config,days:t.days.map(entries=>{if(!Array.isArray(entries)||entries.length>50)throw new Error('Weekly routine is invalid.');return entries.map(entry=>({...checkedEntry(entry),completed:false}));}),notes:t.notes.map(validateSessionNote)};
   }
-  return {settings,days,exercises,notes,skippedWeeks:[...new Set(skippedWeeks)],template};
+  return {libraryVersion:1,settings,days,exercises,notes,skippedWeeks:[...new Set(skippedWeeks)],template};
 }
 
 export function workoutSuggestion(profile, settings, exerciseId, date = todayKey(), calories = null,catalog=EXERCISE_PRESETS) {
@@ -375,7 +400,7 @@ export function workoutSuggestion(profile, settings, exerciseId, date = todayKey
   const exercise = catalog.find(e => e.id === exerciseId);
   if (!exercise) throw new Error('Choose an exercise from the preset list.');
   const energy = calculateGoals(profile, date, calories);
-  if(exercise.id.startsWith('custom-exercise-'))return {sets:exercise.sets,setsMax:exercise.sets,reps:exercise.reps,repsMax:exercise.reps,restSeconds:exercise.restSeconds,load:null,energy,reducedVolume:false};
+  if(exercise.id.startsWith('custom-exercise-')||exercise.customized)return {sets:exercise.sets,setsMax:exercise.sets,reps:exercise.reps,repsMax:exercise.reps,restSeconds:exercise.restSeconds,load:null,energy,reducedVolume:false};
   const ratio = energy.kcal / energy.tdee;
   // These are conservative planning heuristics, not a strength prediction.
   let sets = { preserve:3, build:4, strength:3, fitness:2 }[preferences.goal];

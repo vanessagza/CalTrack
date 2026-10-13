@@ -126,7 +126,7 @@ with sync_playwright() as p:
     expect(history_page.locator('#save-status')).to_have_text('Saved in this browser')
     def history_state():return history_page.evaluate('JSON.parse(localStorage.getItem("daily-balance-v1"))')
     expected=history_page.evaluate('''async date=>{
-        const {calculateGoals,todayKey}=await import('./core.js?v=11');
+        const {calculateGoals,todayKey}=await import('./core.js?v=12');
         const state=JSON.parse(localStorage.getItem('daily-balance-v1'));
         return {past:calculateGoals(state.profile,date),today:calculateGoals(state.profile,todayKey())};
     }''',past)
