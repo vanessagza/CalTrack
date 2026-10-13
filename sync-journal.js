@@ -1,5 +1,5 @@
-import { validateState } from './core.js?v=10';
-import { validatePreferences,DEFAULT_PREFERENCES } from './preferences.js?v=10';
+import { validateState } from './core.js?v=11';
+import { validatePreferences,DEFAULT_PREFERENCES } from './preferences.js?v=11';
 
 export const sameAppearance=(a,b)=>JSON.stringify({...validatePreferences(a),changeId:''})===JSON.stringify({...validatePreferences(b),changeId:''});
 export function rebaseAppearance(base,local,remote) {

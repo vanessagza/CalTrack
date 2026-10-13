@@ -189,6 +189,41 @@ When signed in, workout plans and checkboxes sync with the rest of your journal.
 Concurrent exercise changes combine automatically. Each save changes only its
 edited fields on the latest account revision, preserving unrelated settings.
 
+### Completed workouts and calorie remaining
+
+Checking an exercise adds its **estimated extra energy** to that date's calorie
+budget. Daily intake shows the base budget, completed exercise credit and adjusted
+budget separately. Remaining calories are **base budget + completed exercise
+credit − logged food**. Saved macro targets retain their base values. Workouts
+show estimates for each exercise and the selected day's calorie balance; links
+open the matching food log or workout date.
+
+The estimate is **(MET − 1) × 3.5 × body weight in kg ÷ 200 × active minutes**.
+Subtracting one MET estimates energy above resting. Preset activities have
+different intensity and repetition-pace assumptions, informed by categories in
+the [Adult Compendium of Physical Activities](https://pacompendium.com/).
+These are planning assumptions, not measured calorie costs of individual lifts.
+
+Repetition targets use sets × reps × 3–4 seconds per rep; timed targets use their
+seconds or minutes directly. Per-side targets count both sides. Sets and target
+ranges use their midpoint; enter exact counts to describe what you did. Custom
+exercises use a type-based estimate. The exercise editor previews recalculations
+as you change targets. Rest and warm-up time are not credited, and lifting load
+does not directly change the intensity assumption. Real pace and effort vary.
+
+The last weight recorded on or before the exercise date supplies body weight.
+Days before the first measurement use the profile's starting weight; with no
+weight records, the current profile weight is used. An activity factor already
+including these workouts can count some energy twice when credit is added.
+
+Only completed entries contribute. Unchecking, deleting or clearing removes
+credit. Editing completed sets/reps/duration changes the credit immediately.
+Moving an exercise resets completion; copied and repeated workouts start unchecked.
+Credits are derived from the existing journal instead of saved as a second total,
+so reloads, backups and synced target/completion changes cannot accumulate duplicate
+credit or permanently increase the base budget. No extra cloud request is needed
+to calculate exercise energy.
+
 ## Make the app your own
 
 Open **Settings** in the side menu. Choose **Light**, **Dark**, or **Follow my
@@ -325,6 +360,10 @@ automatic conflict handling, same-browser tabs, pending workouts across reloads,
 food logging with custom colors/text/photo, photos and account isolation.
 `python3 tests/sync-outage-smoke.py` reproduces a stalled database, verifies that
 retries stop, and checks appearance-only recovery, reloads and account isolation.
+`python3 tests/exercise-energy-ui-smoke.py` checks completed exercise calorie
+credits, edited sets/reps/duration previews, day-specific remaining calories,
+historical weights, custom exercises, copying, moving, clearing/Undo, budget
+changes, reloads, saved appearance and mobile layout.
 
 ## References
 

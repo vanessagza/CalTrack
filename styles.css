@@ -369,6 +369,22 @@ html[data-density="compact"] :is(.card-head,.profile-form,.calc-panel,.backup-pa
 .exercise-instructions p{margin:0 0 13px}
 .exercise-muscles{color:var(--green);font-weight:550}
 .workout-save-note{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;margin-top:22px;font-size:var(--subtext-size);color:var(--muted)}
+.activity-calorie-summary,.workout-energy-numbers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.activity-calorie-summary{padding:22px 28px;border-top:1px solid var(--line)}
+.activity-calorie-summary span,.workout-energy-numbers span{display:block;color:var(--muted);font-size:var(--subtext-size);overflow-wrap:anywhere}
+.activity-calorie-summary strong,.workout-energy-numbers strong{display:block;color:var(--ink);font-size:var(--heading-size);margin-top:5px;overflow-wrap:anywhere}
+.activity-calorie-summary p{grid-column:1/-1;margin:0;color:var(--muted);font-size:var(--subtext-size);line-height:1.8}
+.workout-energy-summary{margin:0 24px 24px;padding:20px;background:var(--surface-soft);border:1px solid var(--line);border-radius:12px;overflow-wrap:anywhere}
+.workout-energy-summary>p,.energy-method{font-size:var(--subtext-size);line-height:1.8;color:var(--muted)}
+.energy-method summary{cursor:pointer;color:var(--green);font-size:var(--body-size)}
+.energy-method p{margin:10px 0}
+.exercise-energy-line,.exercise-energy-preview{display:flex;flex-direction:column;gap:5px;padding:12px 15px;border-radius:10px;background:var(--surface-soft);overflow-wrap:anywhere}
+.exercise-energy-line{margin-top:14px}
+.exercise-energy-preview{margin-top:15px}
+.exercise-energy-line strong,.exercise-energy-preview strong{font-size:var(--body-size);color:var(--green)}
+.exercise-energy-line span,.exercise-energy-preview span{font-size:var(--subtext-size);color:var(--muted);line-height:1.8}
+.week-exercise-list .week-exercise-energy{color:var(--green)}
+@media(max-width:600px){.activity-calorie-summary,.workout-energy-numbers{grid-template-columns:1fr;gap:12px}.activity-calorie-summary{padding:20px}.workout-energy-summary{margin:0 16px 20px;padding:16px}}
 .rest-timer{display:none;position:fixed;bottom:25px;right:25px;z-index:30;background:var(--green);color:var(--accent-ink);border-radius:13px;padding:16px 20px;gap:25px;box-shadow:var(--shadow)}
 .rest-timer.active{display:flex;align-items:center}
 .rest-timer strong{font-size:var(--heading-size)}

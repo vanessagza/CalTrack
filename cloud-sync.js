@@ -1,9 +1,9 @@
 import { createClient } from './vendor/supabase.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './sync-config.js';
-import { STORAGE_KEY, createInitialState, validateState } from './core.js?v=10';
-import { DEFAULT_PREFERENCES,validatePreferences } from './preferences.js?v=10';
-import { rebaseJournal, sameJournal } from './journal-merge.js?v=10';
-import { validateCloudJournal,sameAppearance,rebaseAppearance } from './sync-journal.js?v=10';
+import { STORAGE_KEY, createInitialState, validateState } from './core.js?v=11';
+import { DEFAULT_PREFERENCES,validatePreferences } from './preferences.js?v=11';
+import { rebaseJournal, sameJournal } from './journal-merge.js?v=11';
+import { validateCloudJournal,sameAppearance,rebaseAppearance } from './sync-journal.js?v=11';
 
 export function createJournalSync({ applyJournal, statusChanged, client:providedClient, storage:localCache=localStorage, timeoutMs=45000, pollMs=300000 }) {
   const client=providedClient||createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{

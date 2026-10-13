@@ -1,4 +1,4 @@
-import { mixColors, accentText } from './preferences.js?v=10';
+import { mixColors, accentText } from './preferences.js?v=11';
 
 export function applyAppearance(preferences) {
   window.DailyBalanceTheme.setPreference(preferences.theme);

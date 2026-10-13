@@ -215,14 +215,20 @@ with sync_playwright() as p:
     assert exercise['sets']==4 and exercise['reps']==12 and exercise['load']==0
     phone.locator('[data-nav="workouts"]').click()
     phone.evaluate('window.dispatchEvent(new Event("focus"))')
+    phone.locator('#workout-date').fill(workout_day)
     expect(phone.locator('.workout-session [data-workout-complete]')).to_have_count(1,timeout=15000)
     phone.locator('.workout-session [data-workout-complete]').check();synced(phone)
     assert rows[ALICE]['journal']['workouts']['days'][workout_day][0]['completed']
+    expected_credit=round((3.8-1)*3.5*70/200*(4*12*4/60),1)
+    expect(phone.locator('[data-workout-calorie-credit]')).to_have_text('+'+format(expected_credit,'g')+' kcal')
     laptop.evaluate('window.dispatchEvent(new Event("focus"))')
     expect(laptop.locator('.workout-session [data-workout-complete]')).to_be_checked(timeout=15000)
+    expect(laptop.locator('[data-workout-calorie-credit]')).to_have_text('+'+format(expected_credit,'g')+' kcal')
     laptop.reload();synced(laptop)
     laptop.locator('[data-nav="workouts"]').click()
+    laptop.locator('#workout-date').fill(workout_day)
     expect(laptop.locator('.workout-session [data-workout-complete]')).to_be_checked()
+    expect(laptop.locator('[data-workout-calorie-credit]')).to_have_text('+'+format(expected_credit,'g')+' kcal')
     # Reloading a suggested week before upload acknowledgement keeps the dirty local journal.
     laptop.get_by_role('button',name='Next workout week',exact=True).click()
     future_day=laptop.locator('#workout-date').input_value()

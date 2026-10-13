@@ -8,12 +8,13 @@ import {
   suggestWorkoutWeek, copyWorkoutWeek,
   EXERCISE_GROUPS,exerciseCatalog,scheduledExercise,validateExercise,validateSessionNote,
   WARMUP_TEXT,matchesStarterRoutine,starterWeek,workoutConfigKey,clearWorkoutSchedule,
-} from './core.js?v=10';
-import { createJournalSync } from './cloud-sync.js?v=10';
-import { sameJournal } from './journal-merge.js?v=10';
-import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=10';
-import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=10';
-import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=10';
+} from './core.js?v=11';
+import { createJournalSync } from './cloud-sync.js?v=11';
+import { sameJournal } from './journal-merge.js?v=11';
+import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=11';
+import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=11';
+import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=11';
+import {exerciseEnergy,exerciseWeightForDate,workoutDayEnergy,dailyCalorieBalance} from './exercise-energy.js?v=11';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -144,12 +145,12 @@ function toast(message, error = false, allowUndo = false) {
   toastTimer = setTimeout(() => el.classList.remove('show'), allowUndo ? 8000 : 3500);
 }
 function currentDay(create = false) {
-  if (create && !state.days[selectedDate]) state.days[selectedDate] = { entries:[], goals:calculateGoals(state.profile), note:'' };
+  if (create && !state.days[selectedDate]) state.days[selectedDate] = { entries:[], goals:calculateGoals(state.profile,selectedDate), note:'' };
   return state.days[selectedDate] || { entries:[], note:'' };
 }
-function currentGoals() { return currentDay().goals || calculateGoals(state.profile); }
+function currentGoals() { return currentDay().goals || calculateGoals(state.profile,selectedDate); }
 function updateDayGoals(kcal) {
-  const goals = calculateGoals(state.profile, todayKey(), Number(kcal));
+  const goals = calculateGoals(state.profile, selectedDate, Number(kcal));
   currentDay(true).goals = goals;
   if (selectedDate === todayKey()) {
     state.profile.calories = goals.kcal;
@@ -178,22 +179,24 @@ function dateControl() {
 }
 function empty(message, description, action = '') { return `<div class="empty-state">${icon('foods')}<h3>${esc(message)}</h3><p>${esc(description)}</p>${action}</div>`; }
 
-function summaryContent(g, t) {
+function summaryContent(baseGoals, t, exerciseKcal=0) {
+  const g={...baseGoals,kcal:baseGoals.kcal+exerciseKcal};
   const rest = remaining(t, g);
   const over = rest.kcal < -0.5;
   const circumference = 2 * Math.PI * 64;
   return `<div class="summary-main"><div class="calorie-area"><div class="ring" role="img" aria-label="${num(t.kcal)} of ${num(g.kcal)} calories logged">
     <svg viewBox="0 0 156 156"><circle class="track" cx="78" cy="78" r="64" fill="none" stroke-width="10"/><circle class="value ${over ? 'over' : ''}" cx="78" cy="78" r="64" fill="none" stroke-width="10" stroke-dasharray="${circumference * progress(t.kcal,g.kcal)/100} ${circumference}"/></svg>
     <div class="ring-center"><strong>${num(t.kcal)}</strong><small>of ${num(g.kcal)} kcal</small><span class="ring-label">Consumed</span></div></div>
-    <div class="calorie-copy"><span class="small-label">${over ? 'ABOVE YOUR BUDGET' : 'REMAINING TODAY'}</span><div class="remaining-number ${over ? 'day-over' : ''}">${num(Math.abs(rest.kcal))} <small>kcal</small></div><p>${over ? 'One day is one part of your overall pattern.' : 'Room for your next meal.<br>Make it count for you.'}</p><a class="tiny-pill" href="#goals">${icon('leaf')} Lose fat · preserve muscle</a></div></div>
+    <div class="calorie-copy"><span class="small-label">${over ? 'ABOVE YOUR BUDGET' : selectedDate===todayKey()?'REMAINING TODAY':'REMAINING THIS DAY'}</span><div class="remaining-number ${over ? 'day-over' : ''}">${num(Math.abs(rest.kcal))} <small>kcal</small></div><p>${over ? 'One day is one part of your overall pattern.' : 'Room for your next meal.<br>Make it count for you.'}</p><a class="tiny-pill" href="#goals">${icon('leaf')} Lose fat · preserve muscle</a></div></div>
     <div class="macro-list">${['protein','carbs','fat'].map(key => {
       const title = {protein:'Protein',carbs:'Carbohydrates',fat:'Fats'}[key];
       return `<div class="macro"><div class="macro-top"><span class="macro-title"><span class="dot ${key}"></span>${title}</span><span class="macro-values">${num(t[key],1)} g <span>/ ${num(g[key],1)} g</span></span></div><div class="progress-track" role="progressbar" aria-label="${title}" aria-valuemin="0" aria-valuemax="${g[key]}" aria-valuenow="${Math.min(t[key],g[key])}" aria-valuetext="${num(t[key],1)} grams consumed of ${num(g[key],1)} grams"><div class="progress-fill ${key}" style="width:${progress(t[key],g[key])}%"></div></div><div class="macro-bottom"><span>${key==='protein' ? 'For your muscle goal' : key==='carbs' ? 'Your energy balance' : 'A flexible daily target'}</span><span class="${rest[key] < -.05 ? 'exceeded' : ''}">${num(Math.abs(rest[key]),1)} g ${rest[key] < -.05 ? 'above target' : 'remaining'}</span></div></div>`;
-    }).join('')}</div></div>`;
+    }).join('')}</div></div><div class="activity-calorie-summary" aria-label="Daily exercise calorie adjustment"><div><span>Base budget</span><strong data-base-calories>${num(baseGoals.kcal)} kcal</strong></div><div><span>Completed exercise · estimate</span><strong data-calorie-credit>+${num(exerciseKcal,1)} kcal</strong></div><div><span>Adjusted calorie budget</span><strong data-adjusted-calories>${num(g.kcal,1)} kcal</strong></div><p>Only checked workouts for this date add estimated calories. Your macro targets keep their base values. <button class="text-button" data-action="view-calorie-workouts">View this day’s workouts</button></p></div>`;
 }
 
 function renderToday() {
-  const g = currentGoals(), day = currentDay(), t = totals(day.entries), r = remaining(t,g);
+  const g = currentGoals(), day = currentDay(), balance=dailyCalorieBalance(state,selectedDate,g),t=balance.consumed;
+  const exerciseKcal=balance.exercise.creditedKcal,r=remaining(t,{...g,kcal:balance.adjustedKcal});
   const isToday = selectedDate === todayKey();
   const dateLabel = dateText(selectedDate,{weekday:'long',month:'long'});
   const suggestionsList = suggestions(state.foods,r.kcal,r.protein);
@@ -203,7 +206,7 @@ function renderToday() {
     : `There are about ${num(r.kcal)} calories left in your selected budget. Carbs and fats are flexible targets.`;
   $('#main').innerHTML = heading('Your daily balance.',`A clear view of what you ate${isToday ? ' today' : ''}, ${esc(state.profile.name)}.`,dateControl()+addButton(),dateLabel.toUpperCase())
     + (!isToday ? `<div class="notice">${icon('history')}You’re viewing ${dateText(selectedDate,{year:'numeric'})}. <button class="text-button" data-action="today">Back to today</button></div>` : '')
-    + `<section class="card summary-card" aria-label="Daily calorie and macro progress"><div id="summary-live">${summaryContent(g,t)}</div><div class="budget-row"><div class="budget-label"><strong>My daily calorie budget</strong><span>Adjust it and see your targets update</span></div><div class="budget-slider"><span>1,200</span><input id="budget-slider" type="range" min="1200" max="${Math.max(2200,Math.ceil(g.kcal/100)*100)}" step="25" value="${g.kcal}" aria-label="Daily calorie budget"><span>${num(Math.max(2200,Math.ceil(g.kcal/100)*100))}</span></div><div class="budget-value"><input id="budget-number" type="number" min="1200" max="4000" step="25" value="${g.kcal}" aria-label="Daily calorie budget in kilocalories"><span>kcal</span></div></div></section>
+    + `<section class="card summary-card" aria-label="Daily calorie and macro progress"><div id="summary-live">${summaryContent(g,t,exerciseKcal)}</div><div class="budget-row"><div class="budget-label"><strong>My base daily calorie budget</strong><span>Completed exercise is added separately</span></div><div class="budget-slider"><span>1,200</span><input id="budget-slider" type="range" min="1200" max="${Math.max(2200,Math.ceil(g.kcal/100)*100)}" step="25" value="${g.kcal}" aria-label="Daily calorie budget"><span>${num(Math.max(2200,Math.ceil(g.kcal/100)*100))}</span></div><div class="budget-value"><input id="budget-number" type="number" min="1200" max="4000" step="25" value="${g.kcal}" aria-label="Daily calorie budget in kilocalories"><span>kcal</span></div></div></section>
     <div class="daily-grid"><section class="card"><div class="card-head"><div><h2>${isToday ? 'Today’s' : 'Your'} food journal</h2><p>Every portion, in one place.</p></div><span class="badge">${day.entries.length} ${day.entries.length===1 ? 'entry' : 'entries'}</span></div>
     ${day.entries.length ? `<div class="log-table-scroll" role="region" aria-label="Food journal entries" tabindex="0">${renderLog(day.entries)}</div>` : empty('A fresh page.','Add a usual food or save a new one to start this day.',addButton())}
     ${day.note ? `<p class="log-note">${esc(day.note)}</p>` : ''}
@@ -259,7 +262,7 @@ function renderHistory() {
   const proteinAverage = week.length ? week.reduce((sum,[,d])=>sum+totals(d.entries).protein,0)/week.length : 0;
   $('#main').innerHTML = heading('See your bigger picture.','Your days and weight trend, without losing the details.',`<button class="btn primary" data-action="log-weight">${icon('plus')} Log weight</button>`,'PROGRESS OVER TIME')
     + `<div class="history-stats"><section class="card stat-card"><span class="small-label">7-DAY CALORIE AVERAGE</span><strong>${week.length?num(average):'—'} <small>kcal</small></strong><p>Across ${week.length} logged ${week.length===1?'day':'days'} this week</p></section><section class="card stat-card"><span class="small-label">7-DAY PROTEIN AVERAGE</span><strong>${week.length?num(proteinAverage,1):'—'} <small>g</small></strong><p>Unlogged days are excluded</p></section><section class="card stat-card"><span class="small-label">WEIGHT TO GOAL</span><strong>${num(Math.abs(state.profile.weight-state.profile.goalWeight),1)} <small>kg</small></strong><p>Current ${num(state.profile.weight,1)} → goal ${num(state.profile.goalWeight,1)} kg</p></section></div>
-    <div class="history-grid"><section class="card"><div class="card-head"><div><h2>Your logged days</h2><p>Open a day to review or change its portions.</p></div><span class="badge">${logged.length} days</span></div>${logged.length?logged.slice(0,100).map(([date,d])=>{const t=totals(d.entries),g=d.goals||calculateGoals(state.profile);return `<div class="history-row"><div class="history-day"><strong>${dateText(date,{weekday:'short'})}</strong><small>${date.slice(0,4)} · ${d.entries.length} entries</small></div><div class="history-progress"><small>${num(t.kcal)} / ${num(g.kcal)} kcal · ${num(t.protein,1)} g protein</small><div class="progress-track"><div class="progress-fill" style="background:var(--green);width:${progress(t.kcal,g.kcal)}%"></div></div></div><button class="btn secondary small" data-action="open-day" data-date="${date}">Open ${icon('right')}</button></div>`;}).join(''):empty('Your history starts here.','Log a food and its date will appear here.') }<p class="history-summary">Macro targets are saved with each day. ${logged.length>100?'Showing your latest 100 logged days. ':''}An incomplete day still counts as a logged day.</p></section>
+    <div class="history-grid"><section class="card"><div class="card-head"><div><h2>Your logged days</h2><p>Open a day to review or change its portions.</p></div><span class="badge">${logged.length} days</span></div>${logged.length?logged.slice(0,100).map(([date,d])=>{const balance=dailyCalorieBalance(state,date),t=balance.consumed,g={...balance.baseGoals,kcal:balance.adjustedKcal};return `<div class="history-row"><div class="history-day"><strong>${dateText(date,{weekday:'short'})}</strong><small>${date.slice(0,4)} · ${d.entries.length} entries</small></div><div class="history-progress"><small>${num(t.kcal)} / ${num(g.kcal)} kcal · ${num(t.protein,1)} g protein${balance.exercise.creditedKcal?` · +${num(balance.exercise.creditedKcal,1)} exercise kcal`:""}</small><div class="progress-track"><div class="progress-fill" style="background:var(--green);width:${progress(t.kcal,g.kcal)}%"></div></div></div><button class="btn secondary small" data-action="open-day" data-date="${date}">Open ${icon('right')}</button></div>`;}).join(''):empty('Your history starts here.','Log a food and its date will appear here.') }<p class="history-summary">Macro targets are saved with each day. ${logged.length>100?'Showing your latest 100 logged days. ':''}An incomplete day still counts as a logged day.</p></section>
     <section class="card"><div class="card-head"><div><h2>Weight journal</h2><p>A trend matters more than a single measurement.</p></div><button class="text-button" data-action="log-weight">Log weight</button></div><div class="chart-wrap">${weightChart()}<table class="weight-table"><caption class="sr-only">Recorded weights in kilograms</caption><tbody>${state.weights.slice(-15).reverse().map(w=>`<tr><td>${dateText(w.date,{year:'numeric'})}</td><td>${num(w.weight,1)} kg</td><td><button class="icon-btn delete" data-action="delete-weight" data-date="${w.date}" aria-label="Remove weight for ${dateText(w.date)}">${icon('trash')}</button></td></tr>`).join('')}</tbody></table></div></section></div>`;
 }
 
@@ -340,8 +343,22 @@ function showWorkoutEditor(exerciseId, entry = null) {
       <div class="field full"><label for="exercise-note">Notes · optional</label><textarea id="exercise-note" name="exercise-note" maxlength="400" placeholder="For example: use the 6 kg dumbbells">${esc(value.note)}</textarea></div></div>
       <div class="dialog-food-details">${esc(exercise.cue)}<br>Choose a weight or variation that leaves about 2–3 reps in reserve. ${entry ? 'Moving this exercise to another date resets its checkbox.' : 'You can change every suggested target before saving.'}</div>
       <button class="text-button" type="button" data-action="workout-use-suggestion">Use suggested sets & ${minutes?'minutes':seconds ? 'seconds' : 'reps'}</button>
+      <div id="workout-energy-preview" class="exercise-energy-preview" role="status" aria-live="polite"></div>
       <div class="form-error" id="workout-error" role="alert"></div><div class="dialog-footer"><button class="btn secondary" type="button" data-action="close-dialog">Cancel</button><button class="btn primary" type="submit">${icon('check')} ${entry ? 'Save changes' : 'Add exercise'}</button></div></form>`);
   $('#workout-form').dataset.lastSets=String(value.sets);$('#workout-form').dataset.lastReps=String(value.reps);
+  updateWorkoutEnergyPreview();
+}
+
+function updateWorkoutEnergyPreview() {
+  const form=$('#workout-form');if(!form)return;
+  try {
+    const existing=workoutEntries(form.dataset.sourceDate).find(entry=>entry.id===form.dataset.id);
+    const exercise=existing?scheduledExercise(existing,state.workouts):exerciseCatalog(state.workouts).find(e=>e.id===form.dataset.exerciseId);
+    const estimate=exerciseEnergy({sets:Number($('#exercise-sets').value),setsMax:Number($('#exercise-sets-max').value||$('#exercise-sets').value),
+      reps:Number($('#exercise-reps').value),repsMax:Number($('#exercise-reps-max').value||$('#exercise-reps').value)},
+      exercise,exerciseWeightForDate(state,$('#exercise-date').value));
+    $('#workout-energy-preview').innerHTML=`<strong>Estimated extra burn: ~${num(estimate.kcal,1)} kcal</strong><span>${num(estimate.activeMinutes,1)} active min · ${estimate.met} MET · ${num(estimate.weightKg,1)} kg body weight${estimate.usesRange?' · midpoint of your ranges':''}. ${exercise.unit==='reps'?`${estimate.secondsPerRep} sec per rep. `:''}${exercise.unilateral?'Both sides included. ':''}${existing?.completed?'Saving updates this day’s calorie credit.':'Added to remaining calories when you check the exercise.'}</span>`;
+  }catch{$('#workout-energy-preview').textContent='Enter valid sets, targets and a date to preview estimated calories.';}
 }
 
 function showExerciseLibrary() {
@@ -515,6 +532,8 @@ document.addEventListener('click',event=>{
   if(!syncView.ready&&!['backup','close-dialog','sync-account','sync-upload','sync-empty','sync-refresh','sync-signout','sync-recovery','recover-appearance','stop-rest'].includes(action))return toast('Wait until this device is synced before editing.',true);
   if(needsSetup&&['pick-food','food-portion','add-suggestion','copy-day','log-weight','pick-exercise','choose-exercise','suggest-workout-week','copy-workout-week','load-starter-routine'].includes(action)){location.hash='goals';toast('Save your profile or restore your backup first.');return;}
   try {
+    if(action==='view-calorie-workouts'){workoutDate=selectedDate;location.hash='workouts';return;}
+    if(action==='workout-food-day'){selectedDate=workoutDate;location.hash='today';return;}
     if(action==='load-starter-routine') {
       const count=weekDates(workoutDate).flatMap(date=>workoutEntries(date)).length;
       openDialog(dialogHeading('Load the glutes & chest starter plan?',`The supplied plan includes 22 exercises and activities across this week.`)+`<p class="subtle-note">This replaces ${count} scheduled entries in this week, selects muscle preservation, starting out and dumbbells/bodyweight, and enables weekly repeat. Your other weeks are kept. Undo is available.</p><div class="dialog-footer"><button class="btn secondary" data-action="close-dialog">Cancel</button><button class="btn primary" data-action="confirm-starter-routine">Load starter plan</button></div>`);return;
@@ -617,6 +636,7 @@ document.addEventListener('click',event=>{
       const target=workoutTarget(form.dataset.exerciseId,$('#exercise-date').value);
       $('#exercise-sets').value=target.sets;$('#exercise-reps').value=target.reps;
       $('#exercise-sets-max').value=target.setsMax??target.sets;$('#exercise-reps-max').value=target.repsMax??target.reps;$('#exercise-rest').value=target.restSeconds??60;
+      form.dataset.lastSets=String(target.sets);form.dataset.lastReps=String(target.reps);updateWorkoutEnergyPreview();
       $('#workout-error').classList.remove('visible');return;
     }
     if(action==='suggest-workout-week'||action==='copy-workout-week') {
@@ -687,6 +707,7 @@ document.addEventListener('input',event=>{
     if(max.value===form.dataset['last'+kind]||Number(max.value)<Number(el.value))max.value=el.value;
     form.dataset['last'+kind]=el.value;
   }
+  if(el.closest('#workout-form'))updateWorkoutEnergyPreview();
   if(el.closest('#settings-form'))editAppearanceInput(el);
   if(el.id==='food-search') {
     foodQuery=el.value;const list=filteredFoods();$('#foods-grid').innerHTML=list.map(foodCard).join('');
@@ -697,9 +718,9 @@ document.addEventListener('input',event=>{
   if(el.id==='amount') updatePortionPreview();
   if(el.id==='budget-slider') {
     try {
-      const g=calculateGoals(state.profile,todayKey(),Number(el.value));
+      const g=calculateGoals(state.profile,selectedDate,Number(el.value));
       $('#budget-number').value=el.value;
-      $('#summary-live').innerHTML=summaryContent(g,totals(currentDay().entries));
+      $('#summary-live').innerHTML=summaryContent(g,totals(currentDay().entries),workoutDayEnergy(state,selectedDate).creditedKcal);
     } catch(error){toast(error.message,true);}
   }
   if(el.closest('#profile-form')) {
