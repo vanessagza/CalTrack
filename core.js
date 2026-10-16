@@ -1,7 +1,7 @@
-import { validatePreferences } from './preferences.js?v=15';
-import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=15';
-import { FOOD_NUTRIENTS } from './food-nutrients.js?v=15';
-export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=15';
+import { validatePreferences } from './preferences.js?v=16';
+import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=16';
+import { FOOD_NUTRIENTS } from './food-nutrients.js?v=16';
+export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=16';
 
 export const STORAGE_KEY = 'daily-balance-v1';
 export const TIME_ZONE = 'Asia/Tashkent';
@@ -233,21 +233,43 @@ export function nutrientGoals(calories) {
   };
 }
 
+function energyForProfile(profile, date, weightOverride = null) {
+  const age = ageAt(profile.birthDate, date);
+  const weight = weightOverride === null ? profile.weight : numberIn(weightOverride, 30, 250, 'Reference body weight');
+  const common = 6.25 * profile.height - 5 * age + (profile.sex === 'male' ? 5 : -161);
+  const rmr = 10 * weight + common;
+  const goalRmr = 10 * profile.goalWeight + common;
+  return { rmr, tdee:rmr * profile.activity, goalRmr, goalTdee:goalRmr * profile.activity, age };
+}
+
+// Energy references do not require macro targets to fit a selected food budget.
+// A dated weight changes actual expenditure; the goal-weight reference is fixed.
+export function energyNeeds(profile, date = todayKey(), weightOverride = null) {
+  return energyForProfile(validateProfile(profile), date, weightOverride);
+}
+
 export function calculateGoals(profile, date = todayKey(), overrideCalories = null) {
   const p = validateProfile(profile);
-  const age = ageAt(p.birthDate, date);
-  const rmr = 10 * p.weight + 6.25 * p.height - 5 * age + (p.sex === 'male' ? 5 : -161);
-  const tdee = rmr * p.activity;
-  const rawCalculated = tdee * (1 - p.deficit / 100);
+  const energy = energyForProfile(p, date);
+  const rawCalculated = energy.goalTdee * (1 - p.deficit / 100);
   const floor = p.sex === 'female' ? 1200 : 1500;
-  const calculatedCalories = Math.max(floor, Math.round(rawCalculated / 25) * 25);
+  const protein = p.weight * p.proteinFactor;
+  // Goal-weight energy can be too low for a current-weight protein target.
+  // Keep automatic plans feasible without silently changing manual budgets.
+  const calculatedMacroFloorCalories = Math.ceil((protein * 4 / (1 - p.fatPercent / 100)) / 25) * 25;
+  const goalBasedCalories = Math.max(floor, Math.round(rawCalculated / 25) * 25);
+  const uncappedCalculatedCalories = Math.max(goalBasedCalories, calculatedMacroFloorCalories);
+  const calculatedCalories = Math.min(4000, uncappedCalculatedCalories);
   const kcal = overrideCalories === null ? (p.calorieMode === 'manual' ? p.calories : calculatedCalories)
     : numberIn(overrideCalories, 1200, 4000, 'Daily budget');
-  const protein = p.weight * p.proteinFactor;
   const fat = kcal * (p.fatPercent / 100) / 9;
-  const carbs = (kcal - protein * 4 - fat * 9) / 4;
-  if (carbs < 0) throw new Error('This calorie budget cannot accommodate your protein and fat targets.');
-  return { kcal, protein, carbs, fat, ...nutrientGoals(kcal), rmr, tdee, age, calculatedCalories,
+  const carbCalories = kcal - protein * 4 - fat * 9;
+  if (carbCalories < -1e-8) throw new Error('This calorie budget cannot accommodate your protein and fat targets.');
+  const carbs = Math.max(0, carbCalories / 4);
+  return { kcal, protein, carbs, fat, ...nutrientGoals(kcal), ...energy, calculatedCalories,
+    rawCalculatedCalories:rawCalculated, calculatedMacroFloorCalories,
+    calculatedMacroFloorApplied:calculatedMacroFloorCalories > goalBasedCalories,
+    calculatedCeilingApplied:uncappedCalculatedCalories > 4000,
     calculatedFloorApplied: rawCalculated < floor,
     bmi: p.weight / (p.height / 100) ** 2,
     goalBmi: p.goalWeight / (p.height / 100) ** 2 };

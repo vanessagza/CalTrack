@@ -551,3 +551,12 @@ html[data-density="compact"] .library-card-image{height:160px}
  .summary-card .calorie-copy p{display:none}
  .summary-card .calorie-copy .tiny-pill{margin-top:12px}
 }
+
+.goal-budget-reference{padding:16px;border:1px solid var(--line);border-radius:12px;margin:16px 0;background:var(--surface-soft)}
+.goal-budget-reference>div>span,.goal-budget-reference small,.calc-current-reference>span,.calc-current-reference small{display:block;font-size:var(--subtext-size,11px);color:var(--muted);line-height:1.7}
+.goal-budget-reference>div>strong{display:block;font-size:calc(26px * var(--body-scale,1));font-weight:550;color:var(--ink);line-height:1.4}
+.goal-budget-reference>p,.calc-current-reference p{font-size:var(--subtext-size,11px);color:var(--muted);line-height:1.8;margin:9px 0 0}
+.goal-budget-reference>p strong,.calc-current-reference strong{color:var(--ink);font-weight:550}
+.calc-current-reference{padding-bottom:16px;margin-bottom:15px;border-bottom:1px solid var(--line)}
+.calc-current-reference small{margin-top:7px}
+.calc-panel .equation p strong{display:inline}

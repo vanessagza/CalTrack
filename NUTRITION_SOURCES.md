@@ -14,8 +14,9 @@ targets can differ.
 | Sodium | 2,300 mg | An adult ceiling; it is not multiplied by body weight. |
 | Total sugar | No daily target | The dashboard bar shows its share of the carbohydrate budget, not a recommended sugar limit. Includes naturally occurring fruit and milk sugars. Added sugar is part of total sugar. |
 
-The calorie budget already uses the user's current weight, height, formula sex,
-age, activity and selected deficit in calculated mode (Mifflin–St Jeor). The
+The calorie budget uses the user's goal weight, height, formula sex,
+age, activity and selected deficit in calculated mode (Mifflin–St Jeor), with
+minimum-calorie and current-weight macro-feasibility guardrails. The
 energy-based references therefore follow those settings automatically. In manual
 calorie mode they follow the chosen budget. There is no supported universal
 separate weight-, height-, or sex-based multiplier for these extra nutrients.

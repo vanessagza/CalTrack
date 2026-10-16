@@ -26,6 +26,18 @@
 .weekly-intake-ledger strong{font-weight:550;color:var(--ink)}
 .weekly-count-badge{background:var(--green-light);color:var(--green);padding:4px 9px;border-radius:6px}
 .weekly-count-badge strong{color:inherit}
+.weekly-goal-reference{display:grid;grid-template-columns:minmax(110px,.7fr) minmax(0,2fr);gap:14px 22px;padding:17px 19px;margin:0 0 24px;border:1px solid var(--line);border-radius:12px;background:var(--surface-soft,var(--bg));min-width:0}
+.weekly-goal-weight{min-width:0}
+.weekly-goal-weight>span{font-size:var(--subtext-size,9px);letter-spacing:1.1px;color:var(--muted)}
+.weekly-goal-weight p{display:flex;align-items:baseline;gap:5px;margin:7px 0 0}
+.weekly-goal-weight strong{font-size:calc(25px * var(--body-scale,1));font-weight:500;line-height:1.3;color:var(--green)}
+.weekly-goal-reference dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 20px;margin:0;min-width:0}
+.weekly-goal-reference dl>div{min-width:0}
+.weekly-goal-reference dt{font-size:var(--subtext-size,11px);color:var(--muted)}
+.weekly-goal-reference dd{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 7px;margin:7px 0 0;min-width:0}
+.weekly-goal-reference dd strong{font-size:calc(21px * var(--body-scale,1));font-weight:500;line-height:1.3;color:var(--ink)}
+.weekly-goal-reference small{font-size:var(--subtext-size,10px);color:var(--muted)}
+.weekly-goal-reference-note{grid-column:1/-1;font-size:var(--subtext-size,10px);line-height:1.8;color:var(--muted);margin:0}
 .weekly-intake-chart-heading{display:flex;justify-content:space-between;align-items:center;gap:10px 20px;flex-wrap:wrap;margin-bottom:14px}
 .weekly-intake-chart-heading h3{font-size:var(--body-size,13px);font-weight:550;margin:0;color:var(--ink)}
 .weekly-intake-chart-heading p{display:flex;align-items:center;gap:7px;font-size:var(--subtext-size,10px);color:var(--muted);margin:0;flex-wrap:wrap}
@@ -40,7 +52,7 @@
 .weekly-day-heading small{flex-basis:100%;color:var(--green);font-size:var(--subtext-size,8px);line-height:1.2;margin-top:2px}
 .weekly-day-chart{height:80px;width:100%;max-width:54px;margin:15px 0 10px;position:relative;border-bottom:1px solid var(--line);display:flex;align-items:flex-end;justify-content:center}
 .weekly-day-bar{display:block;width:55%;min-width:10px;max-width:30px;background:var(--green);border-radius:5px 5px 0 0;opacity:.85}
-.weekly-maintenance-mark{position:absolute;width:100%;left:0;border-top:2px dashed var(--muted);z-index:1;transform:translateY(1px)}
+.weekly-rmr-mark{position:absolute;width:100%;left:0;border-top:2px dashed var(--muted);z-index:1;transform:translateY(1px)}
 .weekly-day-placeholder{align-self:center;color:var(--muted);font-size:calc(22px * var(--body-scale,1));font-weight:400;opacity:.6}
 .weekly-day-intake{display:flex;flex-direction:column;gap:0;margin:0 0 8px;width:100%}
 .weekly-day-intake strong{font-size:calc(17px * var(--body-scale,1));line-height:1.35;font-weight:550;color:var(--ink);overflow-wrap:anywhere}
@@ -57,3 +69,4 @@ html[data-density="compact"] .weekly-intake{padding:18px}
 @media(max-width:1150px){.weekly-intake-overview{grid-template-columns:minmax(0,1fr);gap:16px}.weekly-average-comparison{gap:18px}.weekly-intake-classification{padding:16px 18px}.weekly-intake-days{gap:7px}.weekly-day{padding-inline:5px}.weekly-day-open svg{display:none}}
 @media(max-width:700px){.weekly-intake{padding:20px 18px;margin-top:18px}.weekly-intake-heading{gap:14px}.weekly-intake-overview{margin-top:20px}.weekly-average-comparison{gap:14px}.weekly-average-comparison strong{font-size:calc(27px * var(--body-scale,1))}.weekly-intake-ledger{gap:10px 16px;margin-bottom:20px}.weekly-intake-days{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.weekly-day-chart{height:58px;max-width:46px}.weekly-day{padding-block:10px 8px}.weekly-day-intake strong{font-size:calc(16px * var(--body-scale,1))}.weekly-day-heading{gap:4px}.weekly-day-status{min-height:3em}.weekly-intake-navigation{gap:7px}}
 @media(max-width:390px){.weekly-intake{padding:18px 13px}.weekly-intake-navigation{width:100%;justify-content:flex-end}.weekly-intake-heading h2{letter-spacing:0}.weekly-average-comparison strong{font-size:calc(24px * var(--body-scale,1))}.weekly-day-open{font-size:var(--subtext-size,8px)}}
+@media(max-width:700px){.weekly-goal-reference{grid-template-columns:1fr;padding:15px;gap:13px}.weekly-goal-weight{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}.weekly-goal-weight p{margin:0}.weekly-goal-reference dl{gap:13px}.weekly-goal-reference dd{display:block}.weekly-goal-reference dd small{display:block;margin-top:3px}}

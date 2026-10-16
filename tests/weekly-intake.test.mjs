@@ -38,7 +38,7 @@ test('an empty week has no intake projection or balance classification',()=>{
   assert.equal(result.days.length,7);
   assert.equal(result.completedDays,0);
   assert.deepEqual(result.totals,totals());
-  for(const key of ['averageDailyKcal','averageDailyMaintenanceKcal','observedBalanceKcal','projectedWeeklyIntakeKcal','projectedWeeklyMaintenanceKcal','projectedWeeklyBalanceKcal'])assert.equal(result[key],null,key);
+  for(const key of ['averageDailyKcal','averageDailyMaintenanceKcal','averageDailyRmrKcal','averageDailyGoalMaintenanceKcal','observedBalanceKcal','projectedWeeklyIntakeKcal','projectedWeeklyMaintenanceKcal','projectedWeeklyBalanceKcal'])assert.equal(result[key],null,key);
   assert.equal(result.status,'insufficient');
   assert.equal(result.partial,true);
   assert.equal(result.isEstimate,true);
@@ -149,6 +149,9 @@ test('partial weeks average only closed nonempty days and compare matched mainte
     assert.equal(day.maintenanceKcal,null);
     assert.equal(day.baseMaintenanceKcal,null);
     assert.equal(day.exerciseKcal,null);
+    assert.equal(day.rmrKcal,null);
+    assert.equal(day.goalMaintenanceKcal,null);
+    assert.equal(day.currentRmrKcal,null);
   }
 });
 
@@ -348,4 +351,48 @@ test('a genuine zero-calorie food log is an included day instead of a missing re
   assert.equal(result.averageDailyKcal,0);
   assert.equal(result.projectedWeeklyIntakeKcal,0);
   assert.equal(result.status,'deficit');
+});
+
+test('goal-weight rest and maintenance references do not replace actual weekly energy balance',()=>{
+  const state=fixture();
+  state.intakeClosedThrough=monday;
+  log(state,monday,2000);
+  const initial=weeklyIntake(state,monday,today);
+  assert.equal(initial.days[0].rmrKcal,1680);
+  assert.equal(initial.days[0].goalMaintenanceKcal,2016);
+  assert.equal(initial.days[0].currentRmrKcal,1750);
+  assert.equal(initial.averageDailyRmrKcal,1680);
+  assert.equal(initial.averageDailyGoalMaintenanceKcal,2016);
+  for(const [goalWeight,goalRmr,goalTdee] of [[60,1580,1896],[100,1980,2376]]) {
+    state.profile.goalWeight=goalWeight;
+    const changed=weeklyIntake(state,monday,today);
+    assert.equal(changed.averageDailyRmrKcal,goalRmr);
+    assert.equal(changed.averageDailyGoalMaintenanceKcal,goalTdee);
+    assert.equal(changed.averageDailyMaintenanceKcal,2100);
+    assert.equal(changed.observedBalanceKcal,initial.observedBalanceKcal);
+    assert.equal(changed.projectedWeeklyBalanceKcal,initial.projectedWeeklyBalanceKcal);
+    assert.equal(changed.status,'maintenance');
+  }
+});
+
+test('goal reference averages follow each included date’s age while actual expenditure uses dated weight and workouts',()=>{
+  const state=fixture();
+  state.profile.birthDate='1996-10-13';
+  state.weights=[{date:monday,weight:77},{date:'2026-10-13',weight:87}];
+  state.intakeClosedThrough='2026-10-13';
+  log(state,monday,2000);
+  log(state,'2026-10-13',2000);
+  state.workouts.days[monday]=[walk('reference-workout')];
+  const result=weeklyIntake(state,monday,today);
+  assert.equal(result.days[0].rmrKcal,1685);
+  assert.equal(result.days[1].rmrKcal,1680);
+  assert.equal(result.averageDailyRmrKcal,1682.5);
+  assert.equal(result.averageDailyGoalMaintenanceKcal,2019);
+  assert.equal(result.days[0].goalMaintenanceKcal,2022);
+  assert.equal(result.days[1].goalMaintenanceKcal,2016);
+  assert.equal(result.days[0].currentRmrKcal,1755);
+  assert.equal(result.days[1].currentRmrKcal,1850);
+  assert.ok(result.days[0].exerciseKcal>0);
+  near(result.averageDailyMaintenanceKcal,(2106+result.days[0].exerciseKcal+2220)/2);
+  assert.equal(result.days[2].rmrKcal,null);
 });

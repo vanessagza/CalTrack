@@ -84,6 +84,11 @@ with sync_playwright() as p:
     expect(weekly).to_be_visible()
     expect(weekly.locator('[data-weekly-date]')).to_have_count(7)
     expect(weekly.locator('input,select,textarea')).to_have_count(0)
+    expect(page.locator('[data-weekly-goal-rmr-average]')).to_have_text('1,402')
+    expect(page.locator('[data-weekly-goal-maintenance]')).to_have_text('2,172')
+    goal_reference = row('2026-10-12').locator('[data-weekly-goal-rmr]')
+    assert float(goal_reference.get_attribute('data-kcal')) == 1401.5
+    assert 'RMR at goal weight' in row('2026-10-12').locator('[role="img"]').get_attribute('aria-label')
     average(1950)
     expect(row('2026-10-12')).to_contain_text('1,900')
     expect(row('2026-10-14')).to_contain_text('2,000')

@@ -121,10 +121,10 @@ test('guidelines distinguish fiber goals, intake limits and total sugar without 
   assert.equal(overridden.sodium, 2300);
 });
 
-test('weight, height and sex affect calorie-based targets through the energy calculation', () => {
+test('goal weight, height and sex affect calorie-based targets through the energy calculation', () => {
   const profile = {...DEFAULT_PROFILE, calorieMode:'calculated'};
   const base = calculateGoals(profile, '2026-10-16');
-  for (const change of [{weight:85}, {height:180}, {sex:'male'}]) {
+  for (const change of [{goalWeight:75}, {height:180}, {sex:'male'}]) {
     const changed = calculateGoals({...profile,...change}, '2026-10-16');
     assert.ok(changed.kcal > base.kcal);
     assert.ok(changed.fiber > base.fiber);

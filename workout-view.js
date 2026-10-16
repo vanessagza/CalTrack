@@ -1,5 +1,5 @@
-import { scheduledExercise,weekDates,WARMUP_TEXT,matchesStarterRoutine,workoutConfigKey } from './core.js?v=15';
-import {workoutDayEnergy,dailyCalorieBalance} from './exercise-energy.js?v=15';
+import { scheduledExercise,weekDates,WARMUP_TEXT,matchesStarterRoutine,workoutConfigKey } from './core.js?v=16';
+import {workoutDayEnergy,dailyCalorieBalance} from './exercise-energy.js?v=16';
 const kcal=value=>Number(value).toLocaleString('en-US',{maximumFractionDigits:1});
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const range=(min,max=min)=>min===max?String(min):`${min}–${max}`;

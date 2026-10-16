@@ -1,10 +1,10 @@
 import {
-  ageAt, closedIntakeThrough, isDateKey, todayKey,
+  energyNeeds, closedIntakeThrough, isDateKey, todayKey,
   totals as foodTotals, validateProfile, weekDates,
-} from './core.js?v=15';
-import { exerciseWeightForDate, workoutDayEnergy } from './exercise-energy.js?v=15';
+} from './core.js?v=16';
+import { exerciseWeightForDate, workoutDayEnergy } from './exercise-energy.js?v=16';
 
-export { closeIntakeDays, closedIntakeThrough as inferredIntakeClosedThrough } from './core.js?v=15';
+export { closeIntakeDays, closedIntakeThrough as inferredIntakeClosedThrough } from './core.js?v=16';
 
 // A practical comparison band, not a claim that predicted expenditure is exact.
 const MAINTENANCE_TOLERANCE = 0.05;
@@ -16,15 +16,17 @@ function maintenanceForDate(state, profile, date) {
   }
   // Use maintenance expenditure directly. The selected calorie budget, deficit,
   // and protein target do not determine whether intake is below maintenance.
-  const rmr = 10 * weightKg + 6.25 * profile.height - 5 * ageAt(profile.birthDate, date)
-    + (profile.sex === 'male' ? 5 : -161);
-  const baseMaintenanceKcal = rmr * profile.activity;
+  const energy = energyNeeds(profile, date, weightKg);
+  const baseMaintenanceKcal = energy.tdee;
   // Higher activity multipliers already include habitual activity. Only the
   // sedentary baseline receives additional completed, net exercise estimates.
   const hasCompletedExercise = state.workouts?.days?.[date]?.some(entry => entry.completed === true);
   const exerciseKcal = profile.activity === 1.2 && hasCompletedExercise
     ? workoutDayEnergy(state, date).creditedKcal : 0;
-  return { baseMaintenanceKcal, exerciseKcal, maintenanceKcal:baseMaintenanceKcal + exerciseKcal };
+  return {
+    baseMaintenanceKcal, exerciseKcal, maintenanceKcal:baseMaintenanceKcal + exerciseKcal,
+    rmrKcal:energy.goalRmr, goalMaintenanceKcal:energy.goalTdee, currentRmrKcal:energy.rmr,
+  };
 }
 
 /**
@@ -50,7 +52,8 @@ export function weeklyIntake(state, anchorDate, today = todayKey()) {
     return {
       date, totals, hasEntries, closed, included, reason,
       ...(included ? maintenanceForDate(state, profile, date)
-        : { maintenanceKcal:null, baseMaintenanceKcal:null, exerciseKcal:null }),
+        : { maintenanceKcal:null, baseMaintenanceKcal:null, exerciseKcal:null,
+          rmrKcal:null, goalMaintenanceKcal:null, currentRmrKcal:null }),
     };
   });
   const includedDays = days.filter(day => day.included);
@@ -59,6 +62,8 @@ export function weeklyIntake(state, anchorDate, today = todayKey()) {
   const maintenanceKcal = includedDays.reduce((sum, day) => sum + day.maintenanceKcal, 0);
   const averageDailyKcal = completedDays ? totals.kcal / completedDays : null;
   const averageDailyMaintenanceKcal = completedDays ? maintenanceKcal / completedDays : null;
+  const averageDailyRmrKcal = completedDays ? includedDays.reduce((sum, day) => sum + day.rmrKcal, 0) / completedDays : null;
+  const averageDailyGoalMaintenanceKcal = completedDays ? includedDays.reduce((sum, day) => sum + day.goalMaintenanceKcal, 0) / completedDays : null;
   const observedBalanceKcal = completedDays ? totals.kcal - maintenanceKcal : null;
   const projectedWeeklyIntakeKcal = completedDays ? averageDailyKcal * 7 : null;
   const projectedWeeklyMaintenanceKcal = completedDays ? averageDailyMaintenanceKcal * 7 : null;
@@ -71,7 +76,7 @@ export function weeklyIntake(state, anchorDate, today = todayKey()) {
   }
   return {
     weekStart:dates[0], weekEnd:dates[6], closedThrough, days, completedDays, totals,
-    averageDailyKcal, averageDailyMaintenanceKcal, observedBalanceKcal,
+    averageDailyKcal, averageDailyMaintenanceKcal, averageDailyRmrKcal, averageDailyGoalMaintenanceKcal, observedBalanceKcal,
     projectedWeeklyIntakeKcal, projectedWeeklyMaintenanceKcal, projectedWeeklyBalanceKcal,
     status, partial:completedDays < 7, isEstimate:true,
     maintenanceTolerance:MAINTENANCE_TOLERANCE, exercisePolicy:'sedentary-only',

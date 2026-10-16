@@ -1,5 +1,5 @@
-import { validateState,closedIntakeThrough,todayKey } from './core.js?v=15';
-import { validatePreferences,DEFAULT_PREFERENCES } from './preferences.js?v=15';
+import { validateState,closedIntakeThrough,todayKey } from './core.js?v=16';
+import { validatePreferences,DEFAULT_PREFERENCES } from './preferences.js?v=16';
 
 const NUTRITION_FIELDS=['fiber','saturatedFat','sugar','addedSugar','sodium','nutrientNote','nutrientSource'];
 const NUTRIENT_GOALS=['fiber','saturatedFat','sugar','addedSugar','sodium'];

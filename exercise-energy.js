@@ -1,4 +1,4 @@
-import {isDateKey,scheduledExercise,calculateGoals,totals,validateExerciseEnergy} from './core.js?v=15';
+import {isDateKey,scheduledExercise,calculateGoals,totals,validateExerciseEnergy} from './core.js?v=16';
 
 // Planning assumptions informed by activity categories in the Adult Compendium.
 // METs describe average intensity, not measured energy for an individual lift.

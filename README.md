@@ -39,7 +39,12 @@ then recalculate from those entries. Completion is saved across reloads and
 sync, so deleting the later day's food does not reopen an earlier day.
 Older journals infer completion from their latest nonfuture food date.
 
-Maintenance uses Mifflin–St Jeor with the dated weight record, formula sex,
+The dashed chart line shows **RMR at your goal weight**. The goal reference strip
+also shows **maintenance TDEE at your goal weight**, and both update when you
+change and save goal weight. RMR estimates resting energy; it is not a daily
+intake limit. The chart's reference does not decide deficit or surplus.
+
+The current-weight maintenance comparison uses Mifflin–St Jeor with the dated weight record, formula sex,
 height, age and usual activity. It is independent of the selected calorie
 budget and deficit. The sedentary activity setting adds only completed net
 exercise estimates; higher activity settings already include exercise and do
@@ -47,6 +52,28 @@ not add it again. Intake within 5% of the matched maintenance estimate is shown
 as estimated maintenance. A partial week projects its counted-day intake and
 maintenance averages over seven days and is clearly marked as a projection.
 It is not a prediction of exact weight change.
+
+## Goal-weight energy formulas
+
+In **Profile & goals**, the main RMR and maintenance TDEE cards use goal weight:
+
+`Goal RMR = 10 × goal weight (kg) + 6.25 × height (cm) − 5 × age + sex constant`
+
+The sex constant is −161 for the female formula and +5 for the male formula.
+`Goal TDEE = goal RMR × usual activity factor`.
+
+In **Use the energy formula** mode, the calorie budget is goal TDEE multiplied
+by `1 − deficit / 100`, rounded to 25 kcal. A 0% deficit approximates maintenance
+at goal weight. The existing minimum-calorie guardrail still applies, and the
+automatic budget is raised if needed to fit the selected current-weight protein
+and fat targets, and is capped at the tracker’s 4,000-kcal maximum. The calculation
+panel identifies applied guardrails; the goal-weight TDEE estimate is uncapped.
+Manual mode keeps the selected calorie budget.
+
+The profile also shows current-weight RMR and TDEE separately. Weekly energy
+balance uses dated current-weight TDEE, which estimates expenditure at the
+weight recorded for those days. Changing goal weight updates goal references
+and formula-mode budgets, while recorded days keep their saved calorie budgets.
 
 ## Daily nutrients
 
@@ -66,7 +93,7 @@ in the calorie and macro values; tracking them does not add calories again.
 | Total sugar | Bar relative to carbohydrate budget; no universal daily reference limit |
 
 These are adult planning references. Formula-mode targets follow the calorie budget estimated from
-weight, height, age, formula sex, activity and deficit. Manual-mode targets follow
+goal weight, height, age, formula sex, activity and deficit. Manual-mode targets follow
 the selected calorie budget. There is no additional weight/height/sex multiplier
 for these nutrients. Exercise calorie credits do not raise these references.
 Recorded days use their saved base calorie budget.

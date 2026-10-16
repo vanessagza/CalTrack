@@ -237,18 +237,18 @@ with sync_playwright() as p:
     page.reload()
     expect(page.locator('#insulinResistance')).not_to_be_checked()
 
-    # Formula-mode targets respond to measurements and the resting-energy sex setting.
+    # Formula-mode targets use goal weight, height and the resting-energy sex setting.
     page.locator('#calorieMode').select_option('calculated')
     page.locator('#sex').select_option('male')
     page.locator('#weight').fill('75')
     page.locator('#height').fill('175')
-    expect(page.locator('#calc-preview')).to_contain_text('At 1,825 kcal')
+    expect(page.locator('#calc-preview')).to_contain_text('At 1,725 kcal')
     page.locator('#profile-form button[type="submit"]').click()
     formula_goals = state()['days'][TODAY]['goals']
-    near(formula_goals['kcal'], 1825)
-    near(formula_goals['fiber'], 25.55)
-    near(formula_goals['saturatedFat'], 1825 * 0.1 / 9)
-    near(formula_goals['addedSugar'], 45.625)
+    near(formula_goals['kcal'], 1725)
+    near(formula_goals['fiber'], 24.15)
+    near(formula_goals['saturatedFat'], 1725 * 0.1 / 9)
+    near(formula_goals['addedSugar'], 43.125)
     assert formula_goals['sodium'] == 2300
     assert state()['days'][PAST]['goals']['kcal'] == 1600
     page.locator('#calorieMode').select_option('manual')

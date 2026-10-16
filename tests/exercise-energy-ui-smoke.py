@@ -126,29 +126,29 @@ with sync_playwright() as p:
     expect(history_page.locator('#save-status')).to_have_text('Saved in this browser')
     def history_state():return history_page.evaluate('JSON.parse(localStorage.getItem("daily-balance-v1"))')
     expected=history_page.evaluate('''async date=>{
-        const {calculateGoals,todayKey}=await import('./core.js?v=13');
+        const {calculateGoals,todayKey}=await import('./core.js?v=16');
         const state=JSON.parse(localStorage.getItem('daily-balance-v1'));
         return {past:calculateGoals(state.profile,date),today:calculateGoals(state.profile,todayKey())};
     }''',past)
     assert expected['past']['age']==24 and expected['today']['age']==30
-    assert expected['past']['kcal']==1600 and expected['today']['kcal']==1575
+    assert expected['past']['kcal']==1550 and expected['today']['kcal']==1525
     profile=copy.deepcopy(history_state()['profile'])
     history_page.locator('#selected-date').fill(past)
-    expect(history_page.locator('[data-base-calories]')).to_have_text('1,600 kcal')
+    expect(history_page.locator('[data-base-calories]')).to_have_text('1,550 kcal')
     assert past not in history_state()['days']
     history_page.locator('[data-action="pick-food"]').first.click()
     history_page.locator('#picker-search').fill('egg')
     history_page.locator('[data-action="food-portion"][data-id="egg"]').click()
     history_page.locator('#portion-form button[type="submit"]').click()
-    expect(history_page.locator('[data-base-calories]')).to_have_text('1,600 kcal')
+    expect(history_page.locator('[data-base-calories]')).to_have_text('1,550 kcal')
     assert history_state()['days'][past]['goals']['kcal']==expected['past']['kcal']
     history_page.reload()
     history_page.locator('#selected-date').fill(past)
-    expect(history_page.locator('[data-base-calories]')).to_have_text('1,600 kcal')
+    expect(history_page.locator('[data-base-calories]')).to_have_text('1,550 kcal')
     # A historical budget preview stays unsaved until change and never edits the profile.
     history_page.locator('#budget-slider').evaluate('(el)=>{el.value=1800;el.dispatchEvent(new Event("input",{bubbles:true}));}')
     expect(history_page.locator('[data-base-calories]')).to_have_text('1,800 kcal')
-    assert history_state()['days'][past]['goals']['kcal']==1600
+    assert history_state()['days'][past]['goals']['kcal']==1550
     assert history_state()['profile']==profile
     history_page.locator('#budget-slider').dispatch_event('change')
     assert history_state()['days'][past]['goals']['kcal']==1800
