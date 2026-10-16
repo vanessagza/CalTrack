@@ -1,5 +1,20 @@
-import { validateState } from './core.js?v=13';
-import { validatePreferences,DEFAULT_PREFERENCES } from './preferences.js?v=13';
+import { validateState } from './core.js?v=14';
+import { validatePreferences,DEFAULT_PREFERENCES } from './preferences.js?v=14';
+
+const NUTRITION_FIELDS=['fiber','saturatedFat','sugar','addedSugar','sodium','nutrientNote','nutrientSource'];
+const NUTRIENT_GOALS=['fiber','saturatedFat','sugar','addedSugar','sodium'];
+const record=value=>value&&typeof value==='object'&&!Array.isArray(value);
+const sameFoodNutrition=(a,b)=>record(a)&&record(b)&&a.id===b.id&&
+  String(a.name||'').trim()===String(b.name||'').trim()&&a.category===b.category&&String(a.source||'')===String(b.source||'')&&
+  ['kcal','protein','carbs','fat'].every(key=>a[key]!==null&&a[key]!==undefined&&a[key]!==''&&Number(a[key])===Number(b[key]));
+function preserveFoodNutrition(food,saved) {
+  if(!sameFoodNutrition(food,saved))return food;
+  const result={...food};
+  // New nutrient values are per 100 g, so a serving-size change can safely keep
+  // them. A changed recipe cannot inherit another recipe's estimates.
+  for(const key of NUTRITION_FIELDS)if(!Object.hasOwn(food,key)&&Object.hasOwn(saved,key))result[key]=saved[key];
+  return result;
+}
 
 export const sameAppearance=(a,b)=>JSON.stringify({...validatePreferences(a),changeId:''})===JSON.stringify({...validatePreferences(b),changeId:''});
 export function rebaseAppearance(base,local,remote) {
@@ -14,6 +29,33 @@ export function rebaseAppearance(base,local,remote) {
 export function validateCloudJournal(value,previous) {
   if(!previous)return validateState(value);
   const raw={...value};
+  if(record(raw.profile)&&!Object.hasOwn(raw.profile,'insulinResistance')&&Object.hasOwn(previous.profile||{},'insulinResistance'))raw.profile={...raw.profile,insulinResistance:previous.profile.insulinResistance};
+  const savedFoods=new Map((previous.foods||[]).map(food=>[food.id,food]));
+  if(Array.isArray(raw.foods))raw.foods=raw.foods.map(food=>preserveFoodNutrition(food,savedFoods.get(food?.id)));
+  if(record(raw.days))raw.days=Object.fromEntries(Object.entries(raw.days).map(([date,day])=>{
+    if(!record(day))return [date,day];
+    const savedDay=previous.days?.[date],restored={...day};
+    const savedEntries=new Map((savedDay?.entries||[]).map(entry=>[entry.id,entry]));
+    if(Array.isArray(day.entries))restored.entries=day.entries.map(entry=>{
+      if(!record(entry)||!record(entry.food))return entry;
+      const saved=savedEntries.get(entry.id);
+      const original=saved?.foodId===entry.foodId?saved.food:undefined;
+      // Existing logs retain their original snapshot, even if the catalog has
+      // since changed. New logs from an older tab can use a matching catalog.
+      const reference=sameFoodNutrition(entry.food,original)?original:savedFoods.get(entry.food.id);
+      return {...entry,food:preserveFoodNutrition(entry.food,reference)};
+    });
+    if(record(day.goals)&&record(savedDay?.goals)) {
+      const goals={...day.goals},saved=savedDay.goals;
+      // An older client may deliberately recalculate its calorie target. In
+      // that case validation derives nutrient targets from the new calories.
+      if(Number(goals.kcal)===Number(saved.kcal))for(const key of NUTRIENT_GOALS)if(!Object.hasOwn(goals,key)&&Object.hasOwn(saved,key))goals[key]=saved[key];
+      if(!Object.hasOwn(goals,'nutrientTargets')&&Object.hasOwn(saved,'nutrientTargets'))goals.nutrientTargets=saved.nutrientTargets;
+      else if(record(goals.nutrientTargets)&&record(saved.nutrientTargets))goals.nutrientTargets={...saved.nutrientTargets,...goals.nutrientTargets};
+      restored.goals=goals;
+    }
+    return [date,restored];
+  }));
   // New appearance edits carry an intent ID. An older client stripping that ID
   // and sending defaults must not erase a confirmed custom palette. A deliberate
   // reset from a current client has its own ID and remains authoritative.

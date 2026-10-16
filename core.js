@@ -1,10 +1,13 @@
-import { validatePreferences } from './preferences.js?v=13';
-import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=13';
-export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=13';
+import { validatePreferences } from './preferences.js?v=14';
+import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=14';
+import { FOOD_NUTRIENTS } from './food-nutrients.js?v=14';
+export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=14';
 
 export const STORAGE_KEY = 'daily-balance-v1';
 export const TIME_ZONE = 'Asia/Tashkent';
 export const NUTRIENTS = ['kcal', 'protein', 'carbs', 'fat'];
+export const EXTRA_NUTRIENTS = ['fiber', 'saturatedFat', 'sugar', 'addedSugar', 'sodium'];
+export const ALL_NUTRIENTS = [...NUTRIENTS, ...EXTRA_NUTRIENTS];
 export const CATEGORIES = ['Protein', 'Bread & grains', 'Dairy', 'Snacks', 'Fruit', 'Extras'];
 export const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks', 'Other'];
 export const WORKOUT_GOALS = [
@@ -51,6 +54,7 @@ export const DEFAULT_PROFILE = {
   weight: 70, startWeight: 70, goalWeight: 65, activity: 1.2,
   calorieMode: 'manual', calories: 1600, deficit: 10, proteinFactor: 1.8,
   fatPercent: 30, objective: 'Lose fat · preserve muscle',
+  insulinResistance: false,
 };
 
 function food(id, name, category, grams, unit, kcal, protein, carbs, fat, note, source = '', verified = false) {
@@ -117,7 +121,17 @@ export const DEFAULT_FOODS = [
     'Generic estimate. Total carbs include fiber; the tracker does not use net carbs.'),
   food('garlic-cracker', 'Garlic crackers', 'Snacks', 20, 'serving', 440, 8, 67, 15,
     'Approximate starter entry. Use the label for your brand and weigh the portion.'),
-];
+].map(value => ({ ...value, ...FOOD_NUTRIENTS[value.id] }));
+
+// Changing a portion never changes values per 100 g. A changed label, identity,
+// or macro profile must not inherit an unrelated starter's additional nutrients.
+function starterNutrients(value) {
+  const starter = DEFAULT_FOODS.find(food => food.id === value.id);
+  if (!starter || ['name', 'category'].some(key => value[key] !== starter[key])
+    || NUTRIENTS.some(key => Number(value[key]) !== starter[key])
+    || safeURL(value.source) !== safeURL(starter.source)) return null;
+  return FOOD_NUTRIENTS[starter.id] || null;
+}
 
 export function todayKey(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
@@ -158,6 +172,7 @@ export function validateProfile(value) {
   if (age < 18 || age > 100) throw new Error('This tracker’s energy formula is for adults aged 18–100.');
   if (!['female', 'male'].includes(value.sex)) throw new Error('Choose a formula sex setting.');
   if (!['manual', 'calculated'].includes(value.calorieMode)) throw new Error('Choose a calorie mode.');
+  if (value.insulinResistance !== undefined && typeof value.insulinResistance !== 'boolean') throw new Error('Insulin resistance setting is invalid.');
   const p = {
     ...DEFAULT_PROFILE,
     name: String(value.name || 'You').slice(0, 40), birthDate: value.birthDate, sex: value.sex,
@@ -169,10 +184,25 @@ export function validateProfile(value) {
     deficit: numberIn(value.deficit, 0, 20, 'Deficit'),
     proteinFactor: numberIn(value.proteinFactor, 1.4, 2.2, 'Protein factor'),
     fatPercent: numberIn(value.fatPercent, 20, 35, 'Fat percentage'),
+    insulinResistance: value.insulinResistance === true,
   };
   const bmiGoal = p.goalWeight / (p.height / 100) ** 2;
   if (bmiGoal < 18.5) throw new Error('This adult tracker does not set weight-loss goals below BMI 18.5.');
   return p;
+}
+
+export function nutrientGoals(calories) {
+  const kcal = numberIn(calories, 1, 20000, 'Daily budget');
+  // Adult reference guidelines depend on energy intake. There is no validated
+  // universal insulin-resistance multiplier for these nutrient amounts.
+  return {
+    fiber: kcal * 14 / 1000,
+    saturatedFat: kcal * 0.1 / 9,
+    sugar: null,
+    addedSugar: kcal * 0.1 / 4,
+    sodium: 2300,
+    nutrientTargets: { fiber:'minimum', saturatedFat:'maximum', sugar:'none', addedSugar:'maximum', sodium:'maximum' },
+  };
 }
 
 export function calculateGoals(profile, date = todayKey(), overrideCalories = null) {
@@ -189,7 +219,7 @@ export function calculateGoals(profile, date = todayKey(), overrideCalories = nu
   const fat = kcal * (p.fatPercent / 100) / 9;
   const carbs = (kcal - protein * 4 - fat * 9) / 4;
   if (carbs < 0) throw new Error('This calorie budget cannot accommodate your protein and fat targets.');
-  return { kcal, protein, carbs, fat, rmr, tdee, age, calculatedCalories,
+  return { kcal, protein, carbs, fat, ...nutrientGoals(kcal), rmr, tdee, age, calculatedCalories,
     calculatedFloorApplied: rawCalculated < floor,
     bmi: p.weight / (p.height / 100) ** 2,
     goalBmi: p.goalWeight / (p.height / 100) ** 2 };
@@ -210,6 +240,22 @@ export function validateFood(value) {
     carbs: numberIn(value.carbs, 0, 100, 'Carbs per 100 g'),
     fat: numberIn(value.fat, 0, 100, 'Fat per 100 g') };
   if (f.protein + f.carbs + f.fat > 102) throw new Error('Macros per 100 g cannot add up to more than about 100 g.');
+  const starter = starterNutrients(value);
+  const labels = { fiber:'Fiber', saturatedFat:'Saturated fat', sugar:'Total sugar', addedSugar:'Added sugar', sodium:'Sodium' };
+  for (const key of EXTRA_NUTRIENTS) {
+    const raw = Object.hasOwn(value, key) ? value[key] : starter?.[key];
+    const blank = raw === undefined || raw === null || (typeof raw === 'string' && raw.trim() === '');
+    if (!blank && !['number', 'string'].includes(typeof raw)) throw new Error(`${labels[key]} per 100 g must be a number or blank.`);
+    f[key] = blank ? null : numberIn(raw, 0, key === 'sodium' ? 100000 : 100, `${labels[key]} per 100 g`);
+  }
+  // Labels and generic source data can differ slightly because of rounding.
+  if (f.saturatedFat !== null && f.saturatedFat > f.fat + 0.2) throw new Error('Saturated fat cannot exceed total fat per 100 g.');
+  if (f.fiber !== null && f.fiber > f.carbs + 0.2) throw new Error('Fiber cannot exceed total carbs per 100 g.');
+  if (f.sugar !== null && f.sugar > f.carbs + 0.2) throw new Error('Total sugar cannot exceed total carbs per 100 g.');
+  if (f.addedSugar !== null && f.addedSugar > f.carbs + 0.2) throw new Error('Added sugar cannot exceed total carbs per 100 g.');
+  if (f.addedSugar !== null && f.sugar !== null && f.addedSugar > f.sugar + 0.2) throw new Error('Added sugar cannot exceed total sugar per 100 g.');
+  f.nutrientNote = String((Object.hasOwn(value, 'nutrientNote') ? value.nutrientNote : starter?.nutrientNote) ?? '').slice(0, 1200);
+  f.nutrientSource = safeURL(Object.hasOwn(value, 'nutrientSource') ? value.nutrientSource : starter?.nutrientSource);
   return f;
 }
 
@@ -234,7 +280,7 @@ export function portionNutrition(value, amount = 1, unit = 'portion') {
   const grams = unit === 'g' ? q : unit === 'tsp' ? q * 4.5 : unit === 'mL' ? q * 0.9 : q * f.portionGrams;
   if (grams > 10000) throw new Error('One food entry cannot exceed 10,000 g.');
   const result = { grams };
-  for (const nutrient of NUTRIENTS) result[nutrient] = f[nutrient] * grams / 100;
+  for (const nutrient of ALL_NUTRIENTS) result[nutrient] = f[nutrient] === null ? null : f[nutrient] * grams / 100;
   return result;
 }
 
@@ -247,10 +293,22 @@ export function newEntry(f, amount, unit, meal = 'Other', id = crypto.randomUUID
 
 export function totals(entries = []) {
   const sum = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+  const coverage = Object.fromEntries(EXTRA_NUTRIENTS.map(key => [key, { known:0, total:entries.length, complete:entries.length === 0 }]));
+  for (const key of EXTRA_NUTRIENTS) sum[key] = 0;
   for (const e of entries) {
     const values = portionNutrition(e.food, e.amount, e.unit);
     for (const key of NUTRIENTS) sum[key] += values[key];
+    for (const key of EXTRA_NUTRIENTS) {
+      if (values[key] === null) continue;
+      sum[key] += values[key];
+      coverage[key].known++;
+    }
   }
+  for (const key of EXTRA_NUTRIENTS) {
+    coverage[key].complete = coverage[key].known === coverage[key].total;
+    if (entries.length && !coverage[key].known) sum[key] = null;
+  }
+  sum.coverage = coverage;
   return sum;
 }
 
@@ -503,6 +561,7 @@ export function validateState(value) {
         carbs: numberIn(g.carbs, 0, 1000, 'Saved carb goal'),
         fat: numberIn(g.fat, 0, 300, 'Saved fat goal') };
       if (Math.abs(goals.protein * 4 + goals.carbs * 4 + goals.fat * 9 - goals.kcal) > 2) throw new Error('Saved macro targets do not match the calorie target.');
+      Object.assign(goals, nutrientGoals(goals.kcal));
     }
     days[date] = { entries, ...(goals ? { goals } : {}), note: String(day.note || '').slice(0, 800) };
   }

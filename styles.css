@@ -501,3 +501,33 @@ html[data-density="compact"] .library-card-image{height:160px}
  .library-empty{padding:35px 20px}
 }
 @media(max-width:380px){.library-filter-grid,.library-card-stats{grid-template-columns:1fr}.library-card-image{height:170px}.library-calories small{display:block;margin-left:0}}
+
+/* Secondary nutrition stays quieter than the three main macro meters. */
+.secondary-nutrients{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 20px;border-top:1px solid var(--line);padding-top:16px;min-width:0;font-size:calc(var(--subtext-size,11px) * .92)}
+.secondary-nutrient-heading{grid-column:1/-1;display:flex;justify-content:space-between;gap:10px;margin:0;color:var(--muted);font-size:inherit;letter-spacing:.06em;line-height:1.6}
+.secondary-nutrient-heading a{font-size:inherit;letter-spacing:normal;color:var(--muted)}
+.secondary-nutrient{min-width:0}
+.nutrient-top{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 9px;line-height:1.5;margin-bottom:5px;color:var(--ink)}
+.nutrient-top small{color:var(--muted);font-size:inherit}
+.secondary-nutrients .progress-track{height:4px;background:#778078;border-radius:4px}
+.secondary-nutrients .progress-fill{background:#fff;border-radius:4px}
+.nutrient-status{font-size:calc(var(--subtext-size,11px) * .85);color:var(--muted);margin-top:4px;line-height:1.6;overflow-wrap:anywhere}
+.sugar-tracked{grid-column:1/-1;display:flex;justify-content:space-between;flex-wrap:wrap;gap:5px 12px;line-height:1.6}
+.sugar-tracked strong{font-weight:550;margin-left:6px}
+.sugar-tracked small{color:var(--muted);font-size:inherit}
+.nutrient-footnote{grid-column:1/-1;margin:0;color:var(--muted);font-size:calc(var(--subtext-size,11px) * .85);line-height:1.7}
+.nutrient-details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 20px;margin:14px 0;color:var(--muted);font-size:var(--subtext-size,11px)}
+.nutrient-details>div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 7px;min-width:0}
+.nutrient-details dt{overflow-wrap:anywhere}
+.nutrient-details dd{margin:0;color:var(--ink);font-variant-numeric:tabular-nums}
+.food-card-nutrients{border-top:1px solid var(--line);padding-top:12px;gap:7px 12px;font-size:calc(var(--subtext-size,11px) * .88)}
+.food-nutrient-note{display:block;color:var(--muted);font-size:calc(var(--subtext-size,11px) * .85);line-height:1.6;margin:-5px 0 14px}
+.extra-nutrient-fields{grid-column:1/-1;min-width:0;margin:5px 0 0;padding:15px;border:1px solid var(--line);border-radius:12px}
+.extra-nutrient-fields legend{color:var(--ink);padding:0 5px;font-size:var(--body-size,13px)}
+.extra-nutrient-fields>p,.nutrient-provenance{font-size:var(--subtext-size,11px);color:var(--muted);line-height:1.8;margin:0 0 14px}
+#food-nutrient-preview{padding:14px 0 0}
+#food-nutrient-preview .nutrient-details{margin-bottom:0}
+#portion-nutrients .secondary-note{margin-top:0}
+.nutrition-condition small{max-width:50ch}
+.nutrient-equations code{white-space:normal;overflow-wrap:anywhere}
+@media(max-width:700px){.secondary-nutrients{gap:12px 15px}.food-card-nutrients{grid-template-columns:1fr}.extra-nutrient-fields{padding:12px}.nutrient-top{gap:2px 6px}}

@@ -289,3 +289,76 @@ test('an older client omitting appearance restores known colors once, then stays
     assert.ok(d.sync.previousJournal());
   }finally{d.sync.stop();}
 });
+
+const extraNutrients=['fiber','saturatedFat','sugar','addedSugar','sodium'];
+function nutritionFixture() {
+  const state=fixture();state.profile.insulinResistance=true;
+  state.foods=[{...state.foods[0],id:'custom-food',name:'My bread',fiber:6.4,saturatedFat:1.2,sugar:4,addedSugar:2,sodium:321,
+    nutrientNote:'From my label.',nutrientSource:'https://example.com/nutrition'}];
+  state.days['2026-10-12']={entries:[newEntry(state.foods[0],1,'portion','Lunch','saved-food')],note:''};
+  return state;
+}
+function withoutNutrition(state) {
+  const older=structuredClone(state);delete older.profile.insulinResistance;
+  for(const item of [...older.foods,...Object.values(older.days).flatMap(day=>day.entries.map(entry=>entry.food))])for(const key of [...extraNutrients,'nutrientNote','nutrientSource'])delete item[key];
+  return older;
+}
+function assertSavedNutrition(journal,saved) {
+  assert.equal(journal.profile.insulinResistance,true);
+  for(const key of [...extraNutrients,'nutrientNote','nutrientSource']) {
+    assert.equal(journal.foods[0][key],saved.foods[0][key]);
+    assert.equal(journal.days['2026-10-12'].entries[0].food[key],saved.days['2026-10-12'].entries[0].food[key]);
+  }
+}
+
+test('raw remote legacy journals preserve known nutrition and materialize it once',async()=>{
+  const saved=nutritionFixture(),db=server(withoutNutrition(saved)),storage=new MemoryStorage();
+  storage.setItem(key,JSON.stringify({journal:saved,base:saved,revision:1,approved:true,dirty:false}));
+  const d=device(db,{storage});
+  try {
+    await until(()=>d.view.ready);assertSavedNutrition(d.journal,saved);assertSavedNutrition(db.row.journal,saved);
+    assert.equal(db.writes,1);
+    d.sync.retry();await until(()=>d.view.ready);assert.equal(db.writes,1);
+  }finally{d.sync.stop();}
+});
+
+test('legacy peer cache storage events preserve raw nutrition omissions before defaults are filled',async()=>{
+  const saved=nutritionFixture(),db=server(saved),storage=new MemoryStorage(),d=device(db,{storage});
+  try {
+    await until(()=>d.view.ready);
+    const older=withoutNutrition(saved);older.profile.name='An older tab';
+    db.row={user_id:id,journal:structuredClone(older),revision:2};
+    storage.setItem(key,JSON.stringify({journal:older,base:older,revision:2,approved:true,dirty:false,checkedAt:Date.now(),protocol:3}));
+    const event=new Event('storage');event.key=key;event.newValue=storage.getItem(key);window.dispatchEvent(event);
+    assert.equal(d.view.ready,false);assertSavedNutrition(d.journal,saved);
+    d.sync.retry();await until(()=>d.view.ready);
+    assertSavedNutrition(db.row.journal,saved);assert.equal(d.journal.profile.name,'An older tab');assert.equal(db.writes,1);
+  }finally{d.sync.stop();}
+});
+
+test('legacy peer caches read under the writer lock retain catalog and snapshot nutrition',async()=>{
+  const saved=nutritionFixture(),db=server(saved),storage=new MemoryStorage(),d=device(db,{storage});
+  try {
+    await until(()=>d.view.ready);
+    const older=withoutNutrition(saved);older.profile.name='A pending older tab';
+    storage.setItem(key,JSON.stringify({journal:older,base:withoutNutrition(saved),revision:1,approved:true,dirty:true,protocol:3}));
+    d.sync.retry();await until(()=>d.view.ready);
+    assertSavedNutrition(d.journal,saved);assertSavedNutrition(db.row.journal,saved);
+    assert.equal(d.journal.profile.name,'A pending older tab');assert.equal(db.writes,1);
+  }finally{d.sync.stop();}
+});
+
+test('current peer caches can explicitly clear nutrition and uncheck insulin resistance',async()=>{
+  const saved=nutritionFixture(),db=server(saved),storage=new MemoryStorage(),d=device(db,{storage});
+  try {
+    await until(()=>d.view.ready);
+    const current=structuredClone(d.journal);current.profile.insulinResistance=false;
+    for(const item of [current.foods[0],current.days['2026-10-12'].entries[0].food])for(const key of extraNutrients)item[key]=null;
+    db.row={user_id:id,journal:current,revision:2};
+    storage.setItem(key,JSON.stringify({journal:current,base:current,revision:2,approved:true,dirty:false,checkedAt:Date.now(),protocol:3}));
+    const event=new Event('storage');event.key=key;event.newValue=storage.getItem(key);window.dispatchEvent(event);
+    await until(()=>d.view.ready);assert.equal(d.journal.profile.insulinResistance,false);
+    for(const item of [d.journal.foods[0],d.journal.days['2026-10-12'].entries[0].food])for(const key of extraNutrients)assert.equal(item[key],null);
+    assert.equal(db.writes,0);
+  }finally{d.sync.stop();}
+});

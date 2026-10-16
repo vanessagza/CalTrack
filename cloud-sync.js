@@ -1,9 +1,9 @@
 import { createClient } from './vendor/supabase.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './sync-config.js';
-import { STORAGE_KEY, createInitialState, validateState } from './core.js?v=13';
-import { DEFAULT_PREFERENCES,validatePreferences } from './preferences.js?v=13';
-import { rebaseJournal, sameJournal } from './journal-merge.js?v=13';
-import { validateCloudJournal,sameAppearance,rebaseAppearance } from './sync-journal.js?v=13';
+import { STORAGE_KEY, createInitialState, validateState } from './core.js?v=14';
+import { DEFAULT_PREFERENCES,validatePreferences } from './preferences.js?v=14';
+import { rebaseJournal, sameJournal } from './journal-merge.js?v=14';
+import { validateCloudJournal,sameAppearance,rebaseAppearance } from './sync-journal.js?v=14';
 
 export function createJournalSync({ applyJournal, statusChanged, client:providedClient, storage:localCache=localStorage, timeoutMs=45000, pollMs=300000 }) {
   const client=providedClient||createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{
@@ -51,18 +51,22 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
     for(const key of [STORAGE_KEY,STORAGE_KEY+'-recovery'])try{return validateState(JSON.parse(localCache.getItem(key)));}catch{/* Try recovery. */}
     return createInitialState();
   }
-  function decodeCache(raw) {
+  function decodeCache(raw,previous) {
     const value=JSON.parse(raw);
     if(!value||!Number.isSafeInteger(value.revision)||value.revision<0)throw new Error('Invalid cached revision.');
-    return {journal:validateState(value.journal),base:value.base?validateState(value.base):null,
-      revision:value.revision,dirty:value.dirty===true,approved:value.approved===true,
+    // Apply compatibility to raw snapshots: validation fills newer defaults,
+    // which would otherwise hide the omissions sent by an older tab.
+    const journal=validateCloudJournal(value.journal,previous);
+    const upgraded=!!previous&&!sameJournal(validateState(value.journal),journal);
+    return {journal,base:value.base?validateCloudJournal(value.base,previous):null,
+      revision:value.revision,dirty:value.dirty===true||upgraded,approved:value.approved===true,
       checkedAt:Number.isSafeInteger(value.checkedAt)&&value.checkedAt>0?value.checkedAt:0};
   }
-  function cached(id) {
+  function cached(id,previous) {
     const key=cacheKey(id);
     // Preserve upgrade snapshots for recovery without publishing any user data.
     for(const suffix of ['', '-recovery'])try {
-      const raw=localCache.getItem(key+suffix),value=decodeCache(raw);
+      const raw=localCache.getItem(key+suffix),value=decodeCache(raw,previous);
       if(JSON.parse(raw).protocol!==3)for(const oldSuffix of ['', '-recovery'])try {
         const old=localCache.getItem(key+oldSuffix);decodeCache(old);
         if(!localCache.getItem(key+'-before-sync-update'+oldSuffix))localCache.setItem(key+'-before-sync-update'+oldSuffix,old);
@@ -184,7 +188,7 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
       const locked=async()=>{
         check();
         // Same-browser tabs share one writer; separate devices use revision checks.
-        const shared=cached(run.id);
+        const shared=cached(run.id,cache.base||cache.journal);
         if(shared&&shared.revision>=cache.revision) {
           const original=shared.journal;
           shared.journal=validateCloudJournal(shared.journal,cache.base||cache.journal);
@@ -252,7 +256,7 @@ export function createJournalSync({ applyJournal, statusChanged, client:provided
   const storage=event=>{
     if(!user||event.key!==cacheKey(user.id)||!event.newValue)return;
     try {
-      const incoming=decodeCache(event.newValue);
+      const incoming=decodeCache(event.newValue,cache.base||cache.journal);
       if(incoming.revision<cache.revision)return;
       const original=incoming.journal;
       incoming.journal=validateCloudJournal(incoming.journal,cache.base||cache.journal);

@@ -1,5 +1,5 @@
 import {
-  STORAGE_KEY, DEFAULT_PROFILE, CATEGORIES, MEALS, NUTRIENTS,
+  STORAGE_KEY, DEFAULT_PROFILE, CATEGORIES, MEALS, NUTRIENTS, EXTRA_NUTRIENTS, nutrientGoals,
   todayKey, ageAt, shiftDate, isDateKey, validateProfile, validateFood,
   calculateGoals, portionNutrition, allowedUnits, unitLabel, newEntry,
   totals, remaining, progress, createInitialState, validateState, suggestions,
@@ -8,18 +8,37 @@ import {
   suggestWorkoutWeek, copyWorkoutWeek,
   EXERCISE_GROUPS,exerciseCatalog,scheduledExercise,validateExercise,validateSessionNote,
   WARMUP_TEXT,matchesStarterRoutine,starterWeek,workoutConfigKey,clearWorkoutSchedule,
-} from './core.js?v=13';
-import { createJournalSync } from './cloud-sync.js?v=13';
-import { sameJournal } from './journal-merge.js?v=13';
-import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=13';
-import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=13';
-import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=13';
-import {exerciseEnergy,exerciseActiveMinutes,exerciseWeightForDate,workoutDayEnergy,dailyCalorieBalance} from './exercise-energy.js?v=13';
-import {exerciseLibraryDashboard,exerciseLibraryResults,exerciseLibraryCount} from './exercise-library-view.js?v=13';
+} from './core.js?v=14';
+import { createJournalSync } from './cloud-sync.js?v=14';
+import { sameJournal } from './journal-merge.js?v=14';
+import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=14';
+import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=14';
+import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=14';
+import {exerciseEnergy,exerciseActiveMinutes,exerciseWeightForDate,workoutDayEnergy,dailyCalorieBalance} from './exercise-energy.js?v=14';
+import {exerciseLibraryDashboard,exerciseLibraryResults,exerciseLibraryCount} from './exercise-library-view.js?v=14';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const num = (value, digits = 0) => Number(value).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: digits });
+const nutrientInfo = {
+  fiber: ['Fiber', 'g'], saturatedFat: ['Saturated fat', 'g'],
+  sugar: ['Total sugar', 'g'], addedSugar: ['Added sugar', 'g'], sodium: ['Sodium', 'mg'],
+};
+const nutrientValue = (value,key) => value == null ? '—' : num(value,key==='sodium'?0:1);
+function nutrientDetails(n, className='') {
+  return `<dl class="nutrient-details ${className}">${EXTRA_NUTRIENTS.map(key=>`<div><dt>${nutrientInfo[key][0]}</dt><dd>${nutrientValue(n[key],key)} ${nutrientInfo[key][1]}</dd></div>`).join('')}</dl>`;
+}
+function secondaryNutrients(g,t) {
+  return `<div class="secondary-nutrients" aria-label="Additional daily nutrients"><p class="secondary-nutrient-heading">DAILY NUTRIENTS <a href="#goals">How targets work ↗</a></p>${['fiber','saturatedFat','addedSugar','sodium'].map(key=>{
+    const [label,unit]=nutrientInfo[key],value=t[key],limit=g[key],coverage=t.coverage?.[key];
+    const partial=coverage&&!coverage.complete,maximum=key!=='fiber',difference=limit-(value??0);
+    const status=value==null?'Missing data':partial?`Known subtotal · ${coverage.known}/${coverage.total} foods${maximum&&difference<0?` · ${num(-difference,key==='sodium'?0:1)} ${unit} over limit`:''}`:maximum?
+      `${num(Math.abs(difference),key==='sodium'?0:1)} ${unit} ${difference<0?'over limit':'below limit'}`:
+      difference>0?`${num(difference,1)} g to goal`:'Goal reached';
+    const text=`${label}: ${value==null?'unknown':`${nutrientValue(value,key)} ${unit}${partial?', known subtotal':''}`} of ${num(limit,key==='sodium'?0:1)} ${unit} ${maximum?'limit':'goal'}${partial?'; some foods have missing data':''}`;
+    return `<div class="secondary-nutrient" data-nutrient="${key}"><div class="nutrient-top"><span>${label}</span><span>${nutrientValue(value,key)} <small>/ ${maximum?'&lt; ':''}${num(limit,key==='sodium'?0:1)} ${unit}</small></span></div><div class="progress-track" role="progressbar" aria-label="${label}" aria-valuemin="0" aria-valuemax="${limit}" ${value==null?'':`aria-valuenow="${Math.min(value,limit)}"`} aria-valuetext="${esc(text)}"><div class="progress-fill" style="width:${progress(value??0,limit)}%"></div></div><div class="nutrient-status">${status}</div></div>`;
+  }).join('')}<div class="sugar-tracked" data-nutrient="sugar"><span>Total sugar <strong>${nutrientValue(t.sugar,'sugar')} g</strong></span><small>${t.sugar==null?'Missing data · ':t.coverage?.sugar?.complete===false?'Known subtotal · ':''}Tracked only · no universal daily limit</small></div><p class="nutrient-footnote">Limits are ceilings, not amounts to reach. Added sugar uses the FDA label reference scaled to your calories; less is better. Missing values are excluded; totals may be incomplete.</p></div>`;
+}
 const paths = {
   dashboard: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   foods: '<path d="M6 3v7m-3-7v5a3 3 0 0 0 6 0V3M6 11v10m12-18c-3 3-4 6-4 10h5M19 3v18"/>',
@@ -79,7 +98,7 @@ let selectedDate = todayKey();
 let workoutDate = todayKey();
 let route = location.hash.slice(1) || 'today';
 let foodQuery = '', foodFilter = 'All';
-let pickerFood = null, editingEntryId = null, modalUnit = 'portion', foodBasis = '100';
+let pickerFood = null, editingEntryId = null, modalUnit = 'portion', foodBasis = '100',foodPortionGrams=100;
 let undoState = null, toastTimer, lastFocused = null, pendingImport = null;
 let restDeadline=0,restInterval;
 let draftExerciseImage='';
@@ -152,7 +171,7 @@ function currentDay(create = false) {
   if (create && !state.days[selectedDate]) state.days[selectedDate] = { entries:[], goals:calculateGoals(state.profile,selectedDate), note:'' };
   return state.days[selectedDate] || { entries:[], note:'' };
 }
-function currentGoals() { return currentDay().goals || calculateGoals(state.profile,selectedDate); }
+function currentGoals() { const goals=currentDay().goals || calculateGoals(state.profile,selectedDate);return {...nutrientGoals(goals.kcal),...goals}; }
 function updateDayGoals(kcal) {
   const goals = calculateGoals(state.profile, selectedDate, Number(kcal));
   currentDay(true).goals = goals;
@@ -195,7 +214,7 @@ function summaryContent(baseGoals, t, exerciseKcal=0) {
     <div class="macro-list">${['protein','carbs','fat'].map(key => {
       const title = {protein:'Protein',carbs:'Carbohydrates',fat:'Fats'}[key];
       return `<div class="macro"><div class="macro-top"><span class="macro-title"><span class="dot ${key}"></span>${title}</span><span class="macro-values">${num(t[key],1)} g <span>/ ${num(g[key],1)} g</span></span></div><div class="progress-track" role="progressbar" aria-label="${title}" aria-valuemin="0" aria-valuemax="${g[key]}" aria-valuenow="${Math.min(t[key],g[key])}" aria-valuetext="${num(t[key],1)} grams consumed of ${num(g[key],1)} grams"><div class="progress-fill ${key}" style="width:${progress(t[key],g[key])}%"></div></div><div class="macro-bottom"><span>${key==='protein' ? 'For your muscle goal' : key==='carbs' ? 'Your energy balance' : 'A flexible daily target'}</span><span class="${rest[key] < -.05 ? 'exceeded' : ''}">${num(Math.abs(rest[key]),1)} g ${rest[key] < -.05 ? 'above target' : 'remaining'}</span></div></div>`;
-    }).join('')}</div></div><div class="activity-calorie-summary" aria-label="Daily exercise calorie adjustment"><div><span>Base budget</span><strong data-base-calories>${num(baseGoals.kcal)} kcal</strong></div><div><span>Completed exercise · estimate</span><strong data-calorie-credit>+${num(exerciseKcal,1)} kcal</strong></div><div><span>Adjusted calorie budget</span><strong data-adjusted-calories>${num(g.kcal,1)} kcal</strong></div><p>Only checked workouts for this date add estimated calories. Your macro targets keep their base values. <button class="text-button" data-action="view-calorie-workouts">View this day’s workouts</button></p></div>`;
+    }).join('')}${secondaryNutrients(baseGoals,t)}</div></div><div class="activity-calorie-summary" aria-label="Daily exercise calorie adjustment"><div><span>Base budget</span><strong data-base-calories>${num(baseGoals.kcal)} kcal</strong></div><div><span>Completed exercise · estimate</span><strong data-calorie-credit>+${num(exerciseKcal,1)} kcal</strong></div><div><span>Adjusted calorie budget</span><strong data-adjusted-calories>${num(g.kcal,1)} kcal</strong></div><p>Only checked workouts for this date add estimated calories. Macro and nutrient targets keep their base values. <button class="text-button" data-action="view-calorie-workouts">View this day’s workouts</button></p></div>`;
 }
 
 function renderToday() {
@@ -238,7 +257,7 @@ function renderLog(entries) {
 
 function foodCard(f) {
   const n = portionNutrition(f);
-  return `<article class="card food-card"><div class="food-card-top">${tile(f)}<span class="label-tag ${f.verified ? '' : 'estimate'}">${f.verified ? 'Official label' : 'Editable estimate'}</span><button class="text-button star favorite ${f.favorite ? 'active' : ''}" data-action="favorite" data-id="${esc(f.id)}" aria-label="${f.favorite?'Unfavorite':'Favorite'} ${esc(f.name)}" aria-pressed="${f.favorite}">${icon('star')}</button></div><h3>${esc(f.name)}</h3><span class="food-card-sub">1 ${esc(f.portionUnit)} · ${num(f.portionGrams,1)} g</span><div class="food-card-numbers"><div><strong>${num(n.kcal)}</strong><small>kcal</small></div><div><strong class="protein-color">${num(n.protein,1)}</strong><small>Protein · g</small></div><div><strong class="carbs-color">${num(n.carbs,1)}</strong><small>Carbs · g</small></div><div><strong class="fat-color">${num(n.fat,1)}</strong><small>Fats · g</small></div></div><div class="food-card-actions"><button class="btn soft small" data-action="food-portion" data-id="${esc(f.id)}">${icon('plus')} Log food</button><button class="icon-btn" data-action="edit-food" data-id="${esc(f.id)}" aria-label="Edit ${esc(f.name)} label">${icon('edit')}</button></div></article>`;
+  return `<article class="card food-card"><div class="food-card-top">${tile(f)}<span class="label-tag ${f.verified ? '' : 'estimate'}">${f.verified ? 'Official label' : 'Editable estimate'}</span><button class="text-button star favorite ${f.favorite ? 'active' : ''}" data-action="favorite" data-id="${esc(f.id)}" aria-label="${f.favorite?'Unfavorite':'Favorite'} ${esc(f.name)}" aria-pressed="${f.favorite}">${icon('star')}</button></div><h3>${esc(f.name)}</h3><span class="food-card-sub">1 ${esc(f.portionUnit)} · ${num(f.portionGrams,1)} g</span><div class="food-card-numbers"><div><strong>${num(n.kcal)}</strong><small>kcal</small></div><div><strong class="protein-color">${num(n.protein,1)}</strong><small>Protein · g</small></div><div><strong class="carbs-color">${num(n.carbs,1)}</strong><small>Carbs · g</small></div><div><strong class="fat-color">${num(n.fat,1)}</strong><small>Fats · g</small></div></div>${nutrientDetails(n,'food-card-nutrients')}<small class="food-nutrient-note">${f.nutrientNote?'Additional nutrients · researched estimates':'Additional nutrients · saved values; — means unknown'}</small><div class="food-card-actions"><button class="btn soft small" data-action="food-portion" data-id="${esc(f.id)}">${icon('plus')} Log food</button><button class="icon-btn" data-action="edit-food" data-id="${esc(f.id)}" aria-label="Edit ${esc(f.name)} label">${icon('edit')}</button></div></article>`;
 }
 function filteredFoods(query = foodQuery, filter = foodFilter) {
   return state.foods.filter(f=>(filter==='All' || filter==='Favorites' && f.favorite || f.category===filter)
@@ -246,7 +265,7 @@ function filteredFoods(query = foodQuery, filter = foodFilter) {
 }
 function renderFoods() {
   $('#main').innerHTML = heading('Your usual foods.', 'Saved portions. Less guesswork. Add, edit, and log them whenever you need.',`<button class="btn primary" data-action="new-food">${icon('plus')} Save a food</button>`,'A FOOD LIST THAT KNOWS YOU')
-    + `<div class="toolbar"><div class="search">${icon('search')}<input id="food-search" value="${esc(foodQuery)}" placeholder="Search your foods…" aria-label="Search saved foods"></div></div><div class="filter-pills" style="margin-bottom:20px">${['All','Favorites',...CATEGORIES].map(c=>`<button class="filter-pill ${foodFilter===c?'active':''}" data-action="food-filter" data-filter="${esc(c)}">${esc(c)}</button>`).join('')}</div><div class="foods-grid" id="foods-grid">${filteredFoods().map(foodCard).join('')}</div><div id="foods-empty">${filteredFoods().length?'':empty('No foods found.','Try another search or save a new food.',`<button class="btn soft" data-action="new-food">Save a food</button>`)}</div><p class="subtle-note">Standard foods and recipes are starting estimates. Kinder entries use the linked manufacturer labels. Set the portion weight and nutrition to match your own packaging for better accuracy. Editing a food preserves the values already recorded in past log entries.</p>`;
+    + `<div class="toolbar"><div class="search">${icon('search')}<input id="food-search" value="${esc(foodQuery)}" placeholder="Search your foods…" aria-label="Search saved foods"></div></div><div class="filter-pills" style="margin-bottom:20px">${['All','Favorites',...CATEGORIES].map(c=>`<button class="filter-pill ${foodFilter===c?'active':''}" data-action="food-filter" data-filter="${esc(c)}">${esc(c)}</button>`).join('')}</div><div class="foods-grid" id="foods-grid">${filteredFoods().map(foodCard).join('')}</div><div id="foods-empty">${filteredFoods().length?'':empty('No foods found.','Try another search or save a new food.',`<button class="btn soft" data-action="new-food">Save a food</button>`)}</div><p class="subtle-note">Standard foods and recipes are starting estimates. Kinder entries use the linked manufacturer labels. Set the portion weight and nutrition to match your own packaging for better accuracy. Additional nutrients in matching starter foods are filled automatically with researched estimates. Other foods keep unknown values until you enter a label; unknown does not mean zero. <a href="./NUTRITION_SOURCES.md" target="_blank" rel="noopener noreferrer">Food nutrient sources ↗</a> Editing a food preserves values already recorded in past log entries.</p>`;
 }
 
 function weightChart() {
@@ -278,16 +297,20 @@ function selectField(label,name,options,value,note='') {
 }
 function readProfileForm() {
   const data = Object.fromEntries(new FormData($('#profile-form')));
-  return validateProfile({...state.profile,...data});
+  return validateProfile({...state.profile,...data,insulinResistance:$('#insulinResistance').checked});
 }
-function renderCalculations(p) {
+function renderEnergyCalculations(p) {
   const g = calculateGoals(p);
   return `<h2>The numbers behind your goal.</h2><p>Formulas make the arithmetic consistent. They estimate your needs; actual needs vary with movement, body composition and weight trends.</p><div class="calc-pair"><div class="calc-result"><span>Resting energy · RMR</span><strong>${num(g.rmr)}</strong><small>kcal / day · estimate</small></div><div class="calc-result"><span>Maintenance · TDEE</span><strong>${num(g.tdee)}</strong><small>kcal / day · estimate</small></div></div><div class="target-summary"><span>Current BMI</span><strong>${num(g.bmi,1)}</strong><span>Goal BMI</span><strong>${num(g.goalBmi,1)}</strong></div><div class="equation"><strong>1. Mifflin–St Jeor resting energy</strong><code>10 × weight + 6.25 × height − 5 × age ${p.sex==='female'?'− 161':'+ 5'}</code><p>10 × ${p.weight} + 6.25 × ${p.height} − 5 × ${g.age} ${p.sex==='female'?'− 161':'+ 5'} = <strong>${num(g.rmr)} kcal</strong></p></div><div class="equation"><strong>2. Activity and calorie budget</strong><code>Maintenance = resting energy × activity factor</code><p>${num(g.rmr)} × ${p.activity} = ${num(g.tdee)} kcal. The ${p.deficit}% deficit estimate is ${num(g.calculatedCalories)} kcal, rounded to the nearest 25.${g.calculatedFloorApplied?' A minimum-budget guardrail was applied.':''}</p><p>${p.calorieMode==='manual'?`Your selected budget is <strong>${num(g.kcal)} kcal</strong>. It is a tracking target you can edit, rather than a measured energy requirement.`:`Your formula-based budget is <strong>${num(g.kcal)} kcal</strong>.`}</p></div><div class="equation"><strong>3. Protein for your muscle goal</strong><code>Protein = current weight × ${p.proteinFactor} g/kg</code><p>${p.weight} × ${p.proteinFactor} = <strong>${num(g.protein,1)} g</strong>. The default 1.8 g/kg is an adjustable planning choice within the 1.4–2.0 g/kg range often used for exercising adults.</p></div><div class="equation"><strong>4. Fats and the remaining carbs</strong><code>Fat = calories × ${p.fatPercent}% ÷ 9<br>Carbs = (calories − protein × 4 − fat × 9) ÷ 4</code><p>Fat: <strong>${num(g.fat,1)} g</strong> · Carbs: <strong>${num(g.carbs,1)} g</strong>. Targets add up to ${num(g.kcal)} kcal using 4 kcal/g for protein and carbs and 9 kcal/g for fat. The default ${p.fatPercent}% fat share is a planning setting, not a measured personal requirement.</p></div><div class="source-links"><a href="https://pubmed.ncbi.nlm.nih.gov/2305711/" target="_blank" rel="noopener noreferrer">Energy equation paper ↗</a><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5477153/" target="_blank" rel="noopener noreferrer">Protein position statement ↗</a></div>`;
+}
+function renderCalculations(p) {
+  const g=calculateGoals(p);
+  return renderEnergyCalculations(p)+`<div class="equation nutrient-equations"><strong>5. Fiber and daily limits</strong><code>Fiber goal = base calories × 14 ÷ 1,000<br>Saturated fat limit = base calories × 10% ÷ 9<br>Added sugar reference = base calories × 10% ÷ 4<br>Sodium limit = 2,300 mg per day</code><p>At ${num(g.kcal)} kcal: aim for <strong>${num(g.fiber,1)} g fiber</strong>; keep saturated fat below <strong>${num(g.saturatedFat,1)} g</strong>, added sugar below the <strong>${num(g.addedSugar,1)} g FDA label reference</strong>, and sodium below <strong>${num(g.sodium)} mg</strong>. Total sugar includes naturally occurring sugar and has no universal daily limit.</p><p>The added sugar bar scales the FDA label Daily Value of 50 g at 2,000 kcal. It is a comparison ceiling, not a recommended intake: current U.S. guidance favors avoiding added sugar. These adult planning references use your base calorie budget. In formula mode, weight, height, age, formula sex and activity affect that budget. In manual mode, they use your selected calories. There is no separate height, sex or weight multiplier for these nutrients. Completed exercise does not raise these targets.</p><p>${p.insulinResistance?'<strong>Insulin resistance guidance is on.</strong> Aim for at least 14 g fiber per 1,000 kcal, choose high-fiber, minimally processed carbohydrates, and limit sugary drinks. Insulin resistance alone does not establish different universal numerical limits; the checkbox keeps these guideline targets. A clinician may individualize your carbohydrate plan and limits.':'The insulin resistance option adds relevant food guidance. Evidence does not establish a separate universal numerical adjustment for insulin resistance.'}</p><p>Fiber and saturated fat are already included in total carbs and fats. Added sugar is part of total sugar. These fields do not add extra calories.</p></div><div class="source-links"><a href="https://cdn.realfood.gov/DGA.pdf" target="_blank" rel="noopener noreferrer">2025–2030 dietary guidance ↗</a><a href="https://www.fda.gov/food/nutrition-facts-label/added-sugars-nutrition-facts-label" target="_blank" rel="noopener noreferrer">FDA added sugar reference ↗</a><a href="https://doi.org/10.2337/dc26-S005" target="_blank" rel="noopener noreferrer">ADA 2026 nutrition guidance ↗</a><a href="./NUTRITION_SOURCES.md" target="_blank" rel="noopener noreferrer">Food estimates & sources ↗</a></div>`;
 }
 function renderGoals() {
   const p = state.profile;
   $('#main').innerHTML = heading('Built around you.','Your measurements, your goal, and formulas you can actually see.','','YOUR PERSONAL SETTINGS')
-    + `<div class="profile-layout"><form class="card profile-form" id="profile-form"><section class="form-section"><h2>My measurements</h2><div class="form-grid">${field('Name','name',p.name,'text','required maxlength="40"')}${field('Date of birth','birthDate',p.birthDate,'date','required')}${field('Current weight · kg','weight',p.weight,'number','required min="30" max="250" step="0.1"')}${field('Height · cm','height',p.height,'number','required min="100" max="230" step="0.1"')}${field('Goal weight · kg','goalWeight',p.goalWeight,'number','required min="30" max="250" step="0.1"')}${field('Starting weight · kg','startWeight',p.startWeight,'number','required min="30" max="250" step="0.1"')}${selectField('Formula sex setting','sex',[['female','Female · −161'],['male','Male · +5']],p.sex,'Used only for the resting-energy equation.')}${selectField('Typical activity','activity',[[1.2,'Mostly sedentary · 1.20'],[1.375,'Light activity · 1.375'],[1.55,'Moderate activity · 1.55'],[1.725,'Very active · 1.725'],[1.9,'Highly active · 1.90']],p.activity,'Choose your usual whole-day activity, not a single workout.')}</div></section><section class="form-section"><h2>My daily targets</h2><div class="form-grid">${selectField('Calorie target mode','calorieMode',[['manual','Use my selected budget'],['calculated','Use the energy formula']],p.calorieMode)}${field('Selected calorie budget · kcal','calories',p.calories,'number','required min="1200" max="4000" step="25"','Select the calorie budget you want to track.')}${field('Formula deficit · %','deficit',p.deficit,'number','required min="0" max="20" step="1"','Used in formula mode. 0% estimates maintenance.')}${field('Protein · g per kg','proteinFactor',p.proteinFactor,'number','required min="1.4" max="2.2" step="0.1"','Multiplied by your current weight.')}${field('Fat share · % of calories','fatPercent',p.fatPercent,'number','required min="20" max="35" step="1"','Carbs use the calories left after protein and fat.')}</div><span class="formula-badge">Calories are estimates, not an exact prescription.</span></section><div class="form-error" id="profile-error" role="alert"></div><div class="form-actions"><button class="btn primary" type="submit">${icon('check')} Save my goals</button><span class="secondary-note">Updates today and future days.<br>Other recorded days keep their targets.</span></div></form>
+    + `<div class="profile-layout"><form class="card profile-form" id="profile-form"><section class="form-section"><h2>My measurements</h2><div class="form-grid">${field('Name','name',p.name,'text','required maxlength="40"')}${field('Date of birth','birthDate',p.birthDate,'date','required')}${field('Current weight · kg','weight',p.weight,'number','required min="30" max="250" step="0.1"')}${field('Height · cm','height',p.height,'number','required min="100" max="230" step="0.1"')}${field('Goal weight · kg','goalWeight',p.goalWeight,'number','required min="30" max="250" step="0.1"')}${field('Starting weight · kg','startWeight',p.startWeight,'number','required min="30" max="250" step="0.1"')}${selectField('Formula sex setting','sex',[['female','Female · −161'],['male','Male · +5']],p.sex,'Used only for the resting-energy equation.')}${selectField('Typical activity','activity',[[1.2,'Mostly sedentary · 1.20'],[1.375,'Light activity · 1.375'],[1.55,'Moderate activity · 1.55'],[1.725,'Very active · 1.725'],[1.9,'Highly active · 1.90']],p.activity,'Choose your usual whole-day activity, not a single workout.')}</div></section><section class="form-section"><h2>My daily targets</h2><div class="form-grid">${selectField('Calorie target mode','calorieMode',[['manual','Use my selected budget'],['calculated','Use the energy formula']],p.calorieMode)}${field('Selected calorie budget · kcal','calories',p.calories,'number','required min="1200" max="4000" step="25"','Select the calorie budget you want to track.')}${field('Formula deficit · %','deficit',p.deficit,'number','required min="0" max="20" step="1"','Used in formula mode. 0% estimates maintenance.')}${field('Protein · g per kg','proteinFactor',p.proteinFactor,'number','required min="1.4" max="2.2" step="0.1"','Multiplied by your current weight.')}${field('Fat share · % of calories','fatPercent',p.fatPercent,'number','required min="20" max="35" step="1"','Carbs use the calories left after protein and fat.')}</div><label class="settings-toggle nutrition-condition"><input id="insulinResistance" name="insulinResistance" type="checkbox" ${p.insulinResistance?'checked':''}><span><strong>I have insulin resistance</strong><small>Show relevant nutrition guidance. Universal numerical targets stay the same; personal treatment may need different targets.</small></span></label><span class="formula-badge">Calories are estimates, not an exact prescription.</span></section><div class="form-error" id="profile-error" role="alert"></div><div class="form-actions"><button class="btn primary" type="submit">${icon('check')} Save my goals</button><span class="secondary-note">Updates today and future days.<br>Other recorded days keep their targets.</span></div></form>
     <div><section class="card calc-panel" id="calc-preview">${renderCalculations(p)}</section><section class="card backup-panel"><h2>Keep a copy of your journal.</h2><p>Your settings, foods and logs are saved on this browser and device. Sign in with Sync devices to keep the same journal on your laptop and phone. Export a backup whenever you want an extra copy.</p><div class="backup-buttons"><button class="btn secondary small" data-action="backup">${icon('download')} Export backup</button><button class="btn secondary small" data-action="import">Restore backup</button></div><input type="file" id="backup-file" accept="application/json,.json" hidden></section></div></div>`;
 }
 
@@ -566,21 +589,36 @@ function showPortion(f, entry = null) {
   const amount = entry?.amount || (modalUnit==='g' ? 100 : 1);
   const presets = f.id==='olive-oil' ? [.5,1,2] : modalUnit==='g' ? [50,100,120,150,200] : [.5,1,2,5];
   openDialog(dialogHeading(entry?'Edit your portion':'Add to your journal',`${esc(f.name)} · ${dateText(selectedDate)}`)
-    + `<form id="portion-form"><div class="form-grid">${field('Amount','amount',amount,'number','required min="0.01" max="10000" step="any"')}${selectField('Unit','unit',allowedUnits(f).map(u=>[u,u==='portion'?`${f.portionUnit} · ${num(f.portionGrams,1)} g`:u]),modalUnit)}${selectField('Meal','meal',MEALS.map(m=>[m,m==='Other'?'Other / not specified':m]),entry?.meal||'Other')}</div><div class="portion-presets">${presets.map(q=>`<button type="button" data-action="portion-preset" data-amount="${q}">${num(q,1)}</button>`).join('')}</div><div id="portion-preview" class="form-preview"></div><div class="dialog-food-details">${esc(f.note)}${f.source?`<br><a href="${esc(f.source)}" target="_blank" rel="noopener noreferrer">View source label ↗</a>`:''}${entry?'<br>This entry uses the label saved when it was logged.':''}</div><div class="form-error" id="portion-error" role="alert"></div><div class="dialog-footer"><button type="button" class="btn secondary" data-action="close-dialog">Cancel</button><button type="submit" class="btn primary">${icon('plus')} ${entry?'Save portion':'Add food'}</button></div></form>`);
+    + `<form id="portion-form"><div class="form-grid">${field('Amount','amount',amount,'number','required min="0.01" max="10000" step="any"')}${selectField('Unit','unit',allowedUnits(f).map(u=>[u,u==='portion'?`${f.portionUnit} · ${num(f.portionGrams,1)} g`:u]),modalUnit)}${selectField('Meal','meal',MEALS.map(m=>[m,m==='Other'?'Other / not specified':m]),entry?.meal||'Other')}</div><div class="portion-presets">${presets.map(q=>`<button type="button" data-action="portion-preset" data-amount="${q}">${num(q,1)}</button>`).join('')}</div><div id="portion-preview" class="form-preview"></div><div id="portion-nutrients"></div><div class="dialog-food-details">${f.nutrientNote?`${esc(f.nutrientNote)}${f.nutrientSource?` <a href="${esc(f.nutrientSource)}" target="_blank" rel="noopener noreferrer">Additional nutrient source ↗</a>`:''}<br>`:''}${esc(f.note)}${f.source?`<br><a href="${esc(f.source)}" target="_blank" rel="noopener noreferrer">View source label ↗</a>`:''}${entry?'<br>This entry uses the label saved when it was logged.':''}</div><div class="form-error" id="portion-error" role="alert"></div><div class="dialog-footer"><button type="button" class="btn secondary" data-action="close-dialog">Cancel</button><button type="submit" class="btn primary">${icon('plus')} ${entry?'Save portion':'Add food'}</button></div></form>`);
   updatePortionPreview();
 }
 function updatePortionPreview() {
   try {
     const n = portionNutrition(pickerFood,$('#amount').value,$('#unit').value);
     $('#portion-preview').innerHTML = NUTRIENTS.map(key=>`<div><strong class="${key}-color">${num(n[key],key==='kcal'?0:1)}</strong><small>${{kcal:'Calories · kcal',protein:'Protein · g',carbs:'Carbs · g',fat:'Fats · g'}[key]}</small></div>`).join('');
+    $('#portion-nutrients').innerHTML=nutrientDetails(n)+`<p class="secondary-note">For this portion · — means unknown. Already included in calories, carbs and fats.</p>`;
     $('#portion-error').classList.remove('visible');
-  } catch (error) { $('#portion-preview').innerHTML = '<small>Enter a valid portion to calculate nutrition.</small>'; }
+  } catch (error) { $('#portion-preview').innerHTML = '<small>Enter a valid portion to calculate nutrition.</small>';$('#portion-nutrients').innerHTML=''; }
 }
 function showFoodEditor(f = null) {
   const value = f || {name:'',category:'Extras',portionUnit:'serving',portionGrams:100,kcal:'',protein:'',carbs:'',fat:'',note:'',source:''};
   foodBasis='100';
+  foodPortionGrams=Number(value.portionGrams);
   openDialog(dialogHeading(f?'Edit your saved food':'Save a food you eat','Use the nutrition label and portion size for your own product.')
-    + `<form id="food-form" data-id="${esc(f?.id||'')}"><div class="form-grid">${field('Food name','food-name',value.name,'text','required maxlength="100"','',true)}${selectField('Category','category',CATEGORIES.map(c=>[c,c]),value.category)}${field('Portion name','portionUnit',value.portionUnit,'text','required maxlength="24"','For example: slice, bar, egg, packet.')}${field('Grams in one portion','portionGrams',value.portionGrams,'number','required min="0.1" max="5000" step="any"')}${selectField('Nutrition values below are','nutritionBasis',[['100','Per 100 g'],['portion','Per one portion']],foodBasis)}${field('Calories · kcal','food-kcal',value.kcal,'number','required min="0" step="any"')}${field('Protein · g','food-protein',value.protein,'number','required min="0" step="any"')}${field('Carbs · g','food-carbs',value.carbs,'number','required min="0" step="any"')}${field('Fats · g','food-fat',value.fat,'number','required min="0" step="any"')}<div class="field full"><label for="food-note">Notes about this food</label><textarea id="food-note" name="food-note" maxlength="800">${esc(value.note)}</textarea></div>${field('Label or source link · optional','food-source',value.source,'url','placeholder="https://…"','',true)}</div><div class="form-error" id="food-error" role="alert"></div><p class="secondary-note">Past food log entries keep their original values when you change a saved label.</p><div class="dialog-footer">${f?`<button type="button" class="btn danger small" data-action="delete-food" data-id="${esc(f.id)}">Delete food</button>`:''}<button type="button" class="btn secondary" data-action="close-dialog">Cancel</button><button class="btn primary" type="submit">${icon('check')} Save food</button></div></form>`);
+    + `<form id="food-form" data-id="${esc(f?.id||'')}"><div class="form-grid">${field('Food name','food-name',value.name,'text','required maxlength="100"','',true)}${selectField('Category','category',CATEGORIES.map(c=>[c,c]),value.category)}${field('Portion name','portionUnit',value.portionUnit,'text','required maxlength="24"','For example: slice, bar, egg, packet.')}${field('Grams in one portion','portionGrams',value.portionGrams,'number','required min="0.1" max="5000" step="any"')}${selectField('Nutrition values below are','nutritionBasis',[['100','Per 100 g'],['portion','Per one portion']],foodBasis)}${field('Calories · kcal','food-kcal',value.kcal,'number','required min="0" step="any"')}${field('Protein · g','food-protein',value.protein,'number','required min="0" step="any"')}${field('Carbs · g','food-carbs',value.carbs,'number','required min="0" step="any"')}${field('Fats · g','food-fat',value.fat,'number','required min="0" step="any"')}<fieldset class="extra-nutrient-fields full"><legend>Additional nutrients · optional</legend><p>Use values from the same label and nutrition basis above. Leave unknown values blank; enter 0 only when the amount is known to be zero. Carbs include fiber and sugars; fats include saturated fat.</p><div class="form-grid">${EXTRA_NUTRIENTS.map(key=>field(`${nutrientInfo[key][0]} · ${nutrientInfo[key][1]}`,key,value[key]??'','number','min="0" step="any" placeholder="Unknown"')).join('')}</div><div id="food-nutrient-preview"></div>${value.nutrientNote?`<p class="nutrient-provenance">${esc(value.nutrientNote)}${value.nutrientSource?` <a href="${esc(value.nutrientSource)}" target="_blank" rel="noopener noreferrer">View nutrient source ↗</a>`:''}</p>`:''}</fieldset><div class="field full"><label for="food-note">Notes about this food</label><textarea id="food-note" name="food-note" maxlength="800">${esc(value.note)}</textarea></div>${field('Label or source link · optional','food-source',value.source,'url','placeholder="https://…"','',true)}</div><div class="form-error" id="food-error" role="alert"></div><p class="secondary-note">Past food log entries keep their original values when you change a saved label.</p><div class="dialog-footer">${f?`<button type="button" class="btn danger small" data-action="delete-food" data-id="${esc(f.id)}">Delete food</button>`:''}<button type="button" class="btn secondary" data-action="close-dialog">Cancel</button><button class="btn primary" type="submit">${icon('check')} Save food</button></div></form>`);
+  updateFoodNutrientPreview();
+}
+function foodNutrientInput(key) {return $(`#${NUTRIENTS.includes(key)?'food-':''}${key}`);}
+function rescaleFoodEditor(factor) {
+  for(const key of [...NUTRIENTS,...EXTRA_NUTRIENTS]) {
+    const input=foodNutrientInput(key);
+    if(input.value!=='')input.value=Number((Number(input.value)*factor).toFixed(6));
+  }
+}
+function updateFoodNutrientPreview() {
+  const grams=Number($('#portionGrams').value),factor=foodBasis==='100'?grams/100:1;
+  const n=Object.fromEntries(EXTRA_NUTRIENTS.map(key=>[key,foodNutrientInput(key).value===''?null:Number(foodNutrientInput(key).value)*factor]));
+  $('#food-nutrient-preview').innerHTML=`<span class="small-label">ONE PORTION · ${num(grams,1)} g</span>${nutrientDetails(n)}`;
 }
 function showWeightDialog() {
   openDialog(dialogHeading('Log your weight.','Try to measure under similar conditions. One entry per date.')
@@ -812,6 +850,16 @@ document.addEventListener('input',event=>{
   if(el.id==='picker-search') $('#picker-results').innerHTML=pickerResults(el.value);
   if(el.id==='exercise-search') $('#exercise-results').innerHTML=exercisePickerResults();
   if(el.id==='amount') updatePortionPreview();
+  if(el.closest('#food-form')) {
+    if(el.id==='portionGrams') {
+      const grams=Number(el.value);
+      if(Number.isFinite(grams)&&grams>0) {
+        if(foodBasis==='portion')rescaleFoodEditor(grams/foodPortionGrams);
+        foodPortionGrams=grams;
+      }
+    }
+    updateFoodNutrientPreview();
+  }
   if(el.id==='budget-slider') {
     try {
       const g=calculateGoals(state.profile,selectedDate,Number(el.value));
@@ -909,8 +957,8 @@ document.addEventListener('change',async event=>{
       const grams=Number($('#portionGrams').value);
       if(!Number.isFinite(grams)||grams<=0)throw new Error('Enter the portion weight first.');
       const factor=el.value==='portion'?grams/100:100/grams;
-      if(el.value!==foodBasis)for(const n of NUTRIENTS){const input=$(`#food-${n}`);if(input.value!=='')input.value=Number((Number(input.value)*factor).toFixed(6));}
-      foodBasis=el.value;return;
+      if(el.value!==foodBasis)rescaleFoodEditor(factor);
+      foodBasis=el.value;updateFoodNutrientPreview();return;
     }
     if(el.id==='backup-file') {
       const file=el.files[0];if(!file)return;
@@ -987,6 +1035,10 @@ document.addEventListener('submit',async event=>{
       const grams=Number(data.portionGrams),factor=data.nutritionBasis==='portion'?100/grams:1;
       const raw={id:existing?.id||`custom-${crypto.randomUUID()}`,name:data['food-name'],category:data.category,portionUnit:data.portionUnit,portionGrams:grams,note:data['food-note'],source:data['food-source'],favorite:existing?.favorite??true,verified:false};
       for(const n of NUTRIENTS) {if(data[`food-${n}`]==='')throw new Error('Fill in calories and all three macro values.');raw[n]=Number(data[`food-${n}`])*factor;}
+      for(const key of EXTRA_NUTRIENTS)raw[key]=data[key]===''?null:Number(data[key])*factor;
+      if(existing&&['name','category','source'].every(key=>raw[key]===existing[key])&&NUTRIENTS.every(key=>Math.abs(raw[key]-existing[key])<.00001)&&EXTRA_NUTRIENTS.every(key=>raw[key]==null?existing[key]==null:existing[key]!=null&&Math.abs(raw[key]-existing[key])<.00001)) {
+        raw.nutrientNote=existing.nutrientNote;raw.nutrientSource=existing.nutrientSource;
+      }
       const food=validateFood(raw);
       if(existing)state.foods=state.foods.map(f=>f.id===food.id?food:f);else state.foods.push(food);
       save();closeDialog();render();toast('Food saved to your list.');

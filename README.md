@@ -19,6 +19,51 @@ Supabase is configured. Signed-out use continues to save in this browser.
 Open **Settings** to customize your own light and dark palettes, text sizes,
 spacing, animations and profile photo.
 
+## Daily nutrients
+
+Below the main macro bars, smaller white bars compare **fiber**, **saturated
+fat**, **added sugar**, and **sodium** with daily planning references. **Total
+sugar** is tracked separately without a universal daily limit. All five are
+shown on saved-food cards and in the portion preview. They are already included
+in the calorie and macro values; tracking them does not add calories again.
+
+| Measurement | Daily reference |
+| --- | --- |
+| Fiber | At least 14 g per 1,000 base kcal |
+| Saturated fat | Below 10% of base calories, divided by 9 kcal/g |
+| Added sugar | FDA label reference: 50 g at 2,000 kcal, scaled to the base budget |
+| Sodium | Below 2,300 mg |
+| Total sugar | Amount tracked; no universal daily reference limit |
+
+These are adult planning references. The added-sugar reference is a comparison
+ceiling, not a recommended amount to eat; current U.S. guidance favors avoiding
+added sugar. Formula-mode targets follow the calorie budget estimated from
+weight, height, age, formula sex, activity and deficit. Manual-mode targets follow
+the selected calorie budget. There is no additional weight/height/sex multiplier
+for these nutrients. Exercise calorie credits do not raise these references.
+Recorded days use their saved base calorie budget.
+
+**Profile & goals → I have insulin resistance** saves this preference and shows
+relevant guidance, including high-fiber carbohydrates and limiting sugary drinks.
+There is no established universal numerical adjustment for insulin resistance
+alone, so the checkbox retains the evidence-based reference values. A clinician
+can individualize the plan. The profile calculation panel explains the formulas
+and links to the guidance.
+
+The 27 starter foods have researched extra-nutrient estimates, matching label
+values where available, and explicit unknowns elsewhere. Existing unmodified
+starter foods and matching historical snapshots receive these automatically;
+edited labels and custom foods are kept intact. Each food's portion dialog and
+editor show its extra-nutrient source and assumptions. See
+[nutrition sources and food-by-food estimates](NUTRITION_SOURCES.md).
+
+The food editor accepts these optional fields **per 100 g** or **per portion**.
+Changing basis converts all nutrition fields; changing portion grams scales the
+per-portion fields and preview. Logging grams or another amount scales each
+nutrient. Blank means unknown; enter zero only for a known zero. Daily totals
+identify missing data and known subtotals instead of treating missing values as
+zero. Backup/restore and account sync include all fields and the checkbox.
+
 ## 1. Export your existing journal first
 
 1. Open your current tracker in the browser where you have been logging food.
@@ -44,6 +89,7 @@ extracted folder. Its files should include:
 | `styles.css` | Layout and appearance |
 | `app.js` | Website interactions and browser storage |
 | `core.js` | Food and exercise catalogs, formulas and validation |
+| `food-nutrients.js`, `NUTRITION_SOURCES.md` | Extra-nutrient estimates, assumptions and dietary references |
 | `workout-plan.js`, `workout-view.js` | Starter routine, technique instructions and workout dashboard |
 | `exercise-library-view.js`, `exercise-energy.js` | Exercise dashboard and completed-workout calorie adjustments |
 | `assets/exercises/` | Bundled exercise illustrations |
