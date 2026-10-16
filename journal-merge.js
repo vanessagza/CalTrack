@@ -1,6 +1,6 @@
-import { validateState, validateWorkouts } from './core.js?v=14';
-import { validatePreferences } from './preferences.js?v=14';
-import { validateCloudJournal } from './sync-journal.js?v=14';
+import { validateState, validateWorkouts,todayKey } from './core.js?v=15';
+import { validatePreferences } from './preferences.js?v=15';
+import { validateCloudJournal } from './sync-journal.js?v=15';
 
 const canonical = value => JSON.stringify(value, function (key, item) {
   return item && typeof item === 'object' && !Array.isArray(item)
@@ -36,13 +36,14 @@ function day(base, local, remote, resolve=choice) {
     note: resolve(base?.note || '', local.note || '', remote.note || ''),
   };
 }
-export function mergeJournals(base, local, remote, {preferLocal=false}={}) {
+export function mergeJournals(base, local, remote, {preferLocal=false,today=todayKey()}={}) {
   // Pending edits are operations against their original base. Replaying them on
   // the latest server revision changes only edited fields; commit order resolves
   // simultaneous edits to the same field without replacing either whole journal.
   const resolve=preferLocal ? (b,l,r)=>sameJournal(b,l)?r:l : choice;
-  base=validateState(base);
-  local=validateCloudJournal(local,base);remote=validateCloudJournal(remote,base);
+  base=validateState(base,today);
+  local=validateCloudJournal(local,base,today);remote=validateCloudJournal(remote,base,today);
+  const intakeClosedThrough=[base.intakeClosedThrough,local.intakeClosedThrough,remote.intakeClosedThrough].filter(Boolean).sort().at(-1)||null;
   const mergeFields=(b,l,r)=>fields(b,l,r,resolve);
   const mergeExercise=(b,l,r)=>{
     const result=mergeFields(b,l,r);
@@ -57,7 +58,7 @@ export function mergeJournals(base, local, remote, {preferLocal=false}={}) {
     }
     return result;
   };
-  if (sameJournal(local, remote)) return validateState(local);
+  if (sameJournal(local, remote)) return validateState({...local,intakeClosedThrough},today);
   const days = {};
   for (const date of new Set([...Object.keys(base.days), ...Object.keys(local.days), ...Object.keys(remote.days)])) {
     const value = day(base.days[date], local.days[date], remote.days[date],resolve);
@@ -92,6 +93,7 @@ export function mergeJournals(base, local, remote, {preferLocal=false}={}) {
   mergedPreferences.typography=mergeFields(...preferences.map(p=>p.typography));
   return validateState({
     version: 1,
+    intakeClosedThrough,
     profileReady: resolve(base.profileReady, local.profileReady, remote.profileReady),
     profile: preferLocal?mergeFields(base.profile,local.profile,remote.profile):resolve(base.profile, local.profile, remote.profile),
     foods: keyed(base.foods, local.foods, remote.foods, 'id', mergeFields),
@@ -107,6 +109,6 @@ export function mergeJournals(base, local, remote, {preferLocal=false}={}) {
     },
     preferences:mergedPreferences,
     createdAt: remote.createdAt,
-  });
+  },today);
 }
-export const rebaseJournal=(base,local,remote)=>mergeJournals(base,local,remote,{preferLocal:true});
+export const rebaseJournal=(base,local,remote,options={})=>mergeJournals(base,local,remote,{...options,preferLocal:true});

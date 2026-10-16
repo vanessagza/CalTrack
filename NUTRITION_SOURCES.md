@@ -10,9 +10,9 @@ targets can differ.
 | --- | --- | --- |
 | Fiber | `daily calorie budget × 14 / 1000` g | A minimum to aim for. |
 | Saturated fat | `daily calorie budget × 0.10 / 9` g | A ceiling, not an amount to eat up to. |
-| Added sugar | `daily calorie budget × 0.10 / 4` g | An energy-scaled **FDA labeling reference limit**, not the current DGA recommendation or an amount to aim for. |
+| Added sugar | `daily calorie budget × 0.10 / 4` g | A retained **FDA labeling reference** for compatibility; added sugar has no dashboard bar. It is not the current DGA recommendation or an amount to aim for. |
 | Sodium | 2,300 mg | An adult ceiling; it is not multiplied by body weight. |
-| Total sugar | No daily target | An informational total that includes naturally occurring fruit and milk sugars. Added sugar is part of total sugar. |
+| Total sugar | No daily target | The dashboard bar shows its share of the carbohydrate budget, not a recommended sugar limit. Includes naturally occurring fruit and milk sugars. Added sugar is part of total sugar. |
 
 The calorie budget already uses the user's current weight, height, formula sex,
 age, activity and selected deficit in calculated mode (Mifflin–St Jeor). The
@@ -49,7 +49,7 @@ references; a checkbox cannot determine a personal treatment plan.
   [official source](https://www.fda.gov/food/nutrition-facts-label/how-understand-and-use-nutrition-facts-label),
   [public scrape mirror read for this change](https://github.com/bagiicpp/Risbo/blob/1aec3f3ce73d1219d343c59d0c3880ec91a86877/ai-backend/wiki/chunks/sports_nutrition_chunks_md/food_and_nutrition_labels.md).
   FDA's labeling Daily Value for added sugar is 50 g for a 2,000-kcal diet;
-  the tracker scales this reference to the selected daily energy budget. FDA
+  the stored reference scales to the selected daily energy budget, but is not shown as a dashboard bar. FDA
   explicitly says no Daily Reference Value has been established for total sugar.
   FDA's saturated-fat label DV (20 g at 2,000 kcal) is a different reference from
   the 10%-energy saturated-fat guidance used here.

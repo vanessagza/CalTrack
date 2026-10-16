@@ -1,5 +1,5 @@
-import { validateState } from './core.js?v=14';
-import { validatePreferences,DEFAULT_PREFERENCES } from './preferences.js?v=14';
+import { validateState,closedIntakeThrough,todayKey } from './core.js?v=15';
+import { validatePreferences,DEFAULT_PREFERENCES } from './preferences.js?v=15';
 
 const NUTRITION_FIELDS=['fiber','saturatedFat','sugar','addedSugar','sodium','nutrientNote','nutrientSource'];
 const NUTRIENT_GOALS=['fiber','saturatedFat','sugar','addedSugar','sodium'];
@@ -26,9 +26,12 @@ export function rebaseAppearance(base,local,remote) {
 }
 
 // An older tab omitting a newer feature is not a request to reset that feature.
-export function validateCloudJournal(value,previous) {
-  if(!previous)return validateState(value);
+export function validateCloudJournal(value,previous,today=todayKey()) {
+  if(!previous)return validateState(value,today);
   const raw={...value};
+  // A legacy tab may add newer logs or remove old ones. It can advance a
+  // completion watermark through inference, but omission cannot move it back.
+  if(!Object.hasOwn(raw,'intakeClosedThrough'))raw.intakeClosedThrough=[closedIntakeThrough(raw,today),closedIntakeThrough(previous,today)].filter(Boolean).sort().at(-1)||null;
   if(record(raw.profile)&&!Object.hasOwn(raw.profile,'insulinResistance')&&Object.hasOwn(previous.profile||{},'insulinResistance'))raw.profile={...raw.profile,insulinResistance:previous.profile.insulinResistance};
   const savedFoods=new Map((previous.foods||[]).map(food=>[food.id,food]));
   if(Array.isArray(raw.foods))raw.foods=raw.foods.map(food=>preserveFoodNutrition(food,savedFoods.get(food?.id)));
@@ -115,5 +118,5 @@ export function validateCloudJournal(value,previous) {
       raw.workouts.template={...value.workouts.template,days:value.workouts.template.days.map(entries=>Array.isArray(entries)?entries.map(preserveSnapshot):entries)};
     }
   }
-  return validateState(raw);
+  return validateState(raw,today);
 }

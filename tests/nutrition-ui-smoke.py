@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TODAY = '2026-10-16'
 PAST = '2026-10-15'
 KEYS = ['fiber', 'saturatedFat', 'sugar', 'addedSugar', 'sodium']
+SUMMARY_KEYS = ['fiber', 'saturatedFat', 'sugar', 'sodium']
 fixture = json.loads(subprocess.check_output([
     'node', '--input-type=module', '-e', """
 import {createInitialState,calculateGoals,newEntry} from './core.js';
@@ -94,6 +95,8 @@ with sync_playwright() as p:
 
     def assert_compact_white_meters():
         expect(page.locator('.secondary-nutrients [role="progressbar"]')).to_have_count(4)
+        expect(meter('sugar').locator('[role="progressbar"]')).to_have_count(1)
+        expect(meter('addedSugar').locator('[role="progressbar"]')).to_have_count(0)
         layout = page.evaluate('''() => {
           const secondary=document.querySelector('.secondary-nutrients');
           const main=[...document.querySelectorAll('.macro .progress-track')];
@@ -109,10 +112,14 @@ with sync_playwright() as p:
 
     # An existing journal needs no manual edits to pick up starter-food research.
     expect(page.locator('.secondary-nutrients')).to_be_visible()
-    for key in KEYS:
+    for key in SUMMARY_KEYS:
         expect(meter(key)).to_be_visible()
         expect(meter(key)).to_contain_text('Known subtotal')
     assert_compact_white_meters()
+    sugar_explanation = meter('sugar').locator('[role="progressbar"]').get_attribute('aria-valuetext')
+    assert 'carbohydrate budget reference' in sugar_explanation
+    assert 'not a recommended sugar limit' in sugar_explanation
+    expect(meter('addedSugar')).to_have_count(0)
 
     # Save once so validation's migrated state is written to browser storage.
     goto('goals')
@@ -136,7 +143,7 @@ with sync_playwright() as p:
     page.locator('[data-action="food-portion"][data-id="custom-legacy"]').click()
     expect(page.locator('#portion-nutrients')).to_contain_text('—')
     page.locator('#portion-form button[type="submit"]').click()
-    for key in KEYS:
+    for key in SUMMARY_KEYS:
         expect(meter(key)).to_contain_text('Missing data')
         expect(meter(key)).to_contain_text('—')
     page.locator('#selected-date').fill(TODAY)
@@ -255,7 +262,7 @@ with sync_playwright() as p:
     page.locator('#budget-slider').evaluate(
         '(el)=>{el.value=2000;el.dispatchEvent(new Event("input",{bubbles:true}));}')
     expect(meter('fiber').locator('[role="progressbar"]')).to_have_attribute('aria-valuemax', '28')
-    expect(meter('addedSugar').locator('[role="progressbar"]')).to_have_attribute('aria-valuemax', '50')
+    expect(meter('sugar').locator('[role="progressbar"]')).to_be_visible()
     assert state()['days'][TODAY]['goals']['kcal'] == 1600
     page.locator('#budget-slider').dispatch_event('change')
     near(state()['days'][TODAY]['goals']['fiber'], 28)
@@ -267,7 +274,7 @@ with sync_playwright() as p:
     for width in [768, 390, 320]:
         page.set_viewport_size({'width': width, 'height': 1050})
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), width
-        for key in KEYS:
+        for key in SUMMARY_KEYS:
             expect(meter(key)).to_be_visible()
         if width == 390:
             page.screenshot(path='/tmp/caltrack-nutrition-mobile.png', full_page=True)

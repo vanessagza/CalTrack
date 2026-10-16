@@ -2,20 +2,22 @@ import {
   STORAGE_KEY, DEFAULT_PROFILE, CATEGORIES, MEALS, NUTRIENTS, EXTRA_NUTRIENTS, nutrientGoals,
   todayKey, ageAt, shiftDate, isDateKey, validateProfile, validateFood,
   calculateGoals, portionNutrition, allowedUnits, unitLabel, newEntry,
-  totals, remaining, progress, createInitialState, validateState, suggestions,
+  totals, remaining, progress, createInitialState, validateState, suggestions, closeIntakeDays, closedIntakeThrough,
   WORKOUT_GOALS, WORKOUT_EXPERIENCE, WORKOUT_EQUIPMENT, EXERCISE_PRESETS,
   weekDates, validateWorkoutSettings, validateWorkoutEntry, workoutSuggestion,
   suggestWorkoutWeek, copyWorkoutWeek,
   EXERCISE_GROUPS,exerciseCatalog,scheduledExercise,validateExercise,validateSessionNote,
   WARMUP_TEXT,matchesStarterRoutine,starterWeek,workoutConfigKey,clearWorkoutSchedule,
-} from './core.js?v=14';
-import { createJournalSync } from './cloud-sync.js?v=14';
-import { sameJournal } from './journal-merge.js?v=14';
-import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=14';
-import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=14';
-import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=14';
-import {exerciseEnergy,exerciseActiveMinutes,exerciseWeightForDate,workoutDayEnergy,dailyCalorieBalance} from './exercise-energy.js?v=14';
-import {exerciseLibraryDashboard,exerciseLibraryResults,exerciseLibraryCount} from './exercise-library-view.js?v=14';
+} from './core.js?v=15';
+import { createJournalSync } from './cloud-sync.js?v=15';
+import { sameJournal } from './journal-merge.js?v=15';
+import {validateCloudJournal} from './sync-journal.js?v=15';
+import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=15';
+import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=15';
+import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=15';
+import {exerciseEnergy,exerciseActiveMinutes,exerciseWeightForDate,workoutDayEnergy,dailyCalorieBalance} from './exercise-energy.js?v=15';
+import {exerciseLibraryDashboard,exerciseLibraryResults,exerciseLibraryCount} from './exercise-library-view.js?v=15';
+import {weeklyIntakeDashboard} from './weekly-intake-view.js?v=15';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -29,15 +31,17 @@ function nutrientDetails(n, className='') {
   return `<dl class="nutrient-details ${className}">${EXTRA_NUTRIENTS.map(key=>`<div><dt>${nutrientInfo[key][0]}</dt><dd>${nutrientValue(n[key],key)} ${nutrientInfo[key][1]}</dd></div>`).join('')}</dl>`;
 }
 function secondaryNutrients(g,t) {
-  return `<div class="secondary-nutrients" aria-label="Additional daily nutrients"><p class="secondary-nutrient-heading">DAILY NUTRIENTS <a href="#goals">How targets work ↗</a></p>${['fiber','saturatedFat','addedSugar','sodium'].map(key=>{
-    const [label,unit]=nutrientInfo[key],value=t[key],limit=g[key],coverage=t.coverage?.[key];
-    const partial=coverage&&!coverage.complete,maximum=key!=='fiber',difference=limit-(value??0);
-    const status=value==null?'Missing data':partial?`Known subtotal · ${coverage.known}/${coverage.total} foods${maximum&&difference<0?` · ${num(-difference,key==='sodium'?0:1)} ${unit} over limit`:''}`:maximum?
-      `${num(Math.abs(difference),key==='sodium'?0:1)} ${unit} ${difference<0?'over limit':'below limit'}`:
+  return `<div class="secondary-nutrients" aria-label="Additional daily nutrients"><p class="secondary-nutrient-heading">DAILY NUTRIENTS <a href="#goals">How targets work ↗</a></p>${['fiber','saturatedFat','sugar','sodium'].map(key=>{
+    const [label,unit]=nutrientInfo[key],value=t[key],isSugar=key==='sugar';
+    const limit=isSugar?g.carbs:g[key],coverage=t.coverage?.[key];
+    const partial=coverage&&!coverage.complete,maximum=['saturatedFat','sodium'].includes(key),difference=limit-(value??0);
+    const status=value==null?'Missing data':partial?`Known subtotal · ${coverage.known}/${coverage.total} foods${maximum&&difference<0?` · ${num(-difference,key==='sodium'?0:1)} ${unit} over limit`:''}`:isSugar?
+      limit>0?'Part of total carbs · no sugar target':'Amount tracked · no positive carb budget':maximum?`${num(Math.abs(difference),key==='sodium'?0:1)} ${unit} ${difference<0?'over limit':'below limit'}`:
       difference>0?`${num(difference,1)} g to goal`:'Goal reached';
-    const text=`${label}: ${value==null?'unknown':`${nutrientValue(value,key)} ${unit}${partial?', known subtotal':''}`} of ${num(limit,key==='sodium'?0:1)} ${unit} ${maximum?'limit':'goal'}${partial?'; some foods have missing data':''}`;
-    return `<div class="secondary-nutrient" data-nutrient="${key}"><div class="nutrient-top"><span>${label}</span><span>${nutrientValue(value,key)} <small>/ ${maximum?'&lt; ':''}${num(limit,key==='sodium'?0:1)} ${unit}</small></span></div><div class="progress-track" role="progressbar" aria-label="${label}" aria-valuemin="0" aria-valuemax="${limit}" ${value==null?'':`aria-valuenow="${Math.min(value,limit)}"`} aria-valuetext="${esc(text)}"><div class="progress-fill" style="width:${progress(value??0,limit)}%"></div></div><div class="nutrient-status">${status}</div></div>`;
-  }).join('')}<div class="sugar-tracked" data-nutrient="sugar"><span>Total sugar <strong>${nutrientValue(t.sugar,'sugar')} g</strong></span><small>${t.sugar==null?'Missing data · ':t.coverage?.sugar?.complete===false?'Known subtotal · ':''}Tracked only · no universal daily limit</small></div><p class="nutrient-footnote">Limits are ceilings, not amounts to reach. Added sugar uses the FDA label reference scaled to your calories; less is better. Missing values are excluded; totals may be incomplete.</p></div>`;
+    const reference=isSugar?'carbohydrate budget reference':maximum?'limit':'goal';
+    const text=`${label}: ${value==null?'unknown':`${nutrientValue(value,key)} ${unit}${partial?', known subtotal':''}`}${limit>0?` compared with ${num(limit,key==='sodium'?0:1)} ${unit} ${reference}`:'; no positive carbohydrate budget is set'}${isSugar?'; this is not a recommended sugar limit':''}${partial?'; some foods have missing data':''}`;
+    return `<div class="secondary-nutrient" data-nutrient="${key}"><div class="nutrient-top"><span>${label}</span><span>${nutrientValue(value,key)}${limit>0?` <small>/ ${maximum?'&lt; ':''}${num(limit,key==='sodium'?0:1)} ${unit}${isSugar?' carbs':''}</small>`:` ${unit}`}</span></div><div class="progress-track" role="progressbar" aria-label="${label}" ${limit>0?`aria-valuemin="0" aria-valuemax="${limit}"`:''} ${value==null||limit<=0?'':`aria-valuenow="${Math.min(value,limit)}"`} aria-valuetext="${esc(text)}"><div class="progress-fill" style="width:${limit>0?progress(value??0,limit):0}%"></div></div><div class="nutrient-status">${status}</div></div>`;
+  }).join('')}<p class="nutrient-footnote">Sugar shows its share of your carb budget, not a recommended sugar limit. Missing values are excluded; totals may be incomplete.</p></div>`;
 }
 const paths = {
   dashboard: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -95,11 +99,12 @@ let checkingAccount=false;
 try{checkingAccount=!!localStorage.getItem('daily-balance-auth');}catch{/* Continue with local setup. */}
 if (needsSetup && !checkingAccount && !returningFromSignIn && location.hash !== '#settings') location.hash = 'goals';
 let selectedDate = todayKey();
+let intakeWeekDate = selectedDate;
 let workoutDate = todayKey();
 let route = location.hash.slice(1) || 'today';
 let foodQuery = '', foodFilter = 'All';
 let pickerFood = null, editingEntryId = null, modalUnit = 'portion', foodBasis = '100',foodPortionGrams=100;
-let undoState = null, toastTimer, lastFocused = null, pendingImport = null;
+let undoState = null, undoRestoresJournal=false, toastTimer, lastFocused = null, pendingImport = null;
 let restDeadline=0,restInterval;
 let draftExerciseImage='';
 let exerciseImageGeneration=0;
@@ -167,6 +172,7 @@ function toast(message, error = false, allowUndo = false) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), allowUndo ? 8000 : 3500);
 }
+function rememberUndo(restoresJournal=false) {undoState=structuredClone(state);undoRestoresJournal=restoresJournal;}
 function currentDay(create = false) {
   if (create && !state.days[selectedDate]) state.days[selectedDate] = { entries:[], goals:calculateGoals(state.profile,selectedDate), note:'' };
   return state.days[selectedDate] || { entries:[], note:'' };
@@ -189,8 +195,13 @@ function applyTodaysGoals(profile) {
 function setDate(date) {
   if (!isDateKey(date)) return toast('Choose a valid date.', true);
   selectedDate = date;
+  intakeWeekDate = date;
   if (route !== 'today') location.hash = 'today';
   else render();
+}
+function renderIntakeWeek(focusAction='') {
+  $('#weekly-intake').outerHTML=weeklyIntakeDashboard({state,date:intakeWeekDate,today:todayKey(),dateText,icon,num,esc});
+  if(focusAction)$(`[data-action="${focusAction}"]`)?.focus({preventScroll:true});
 }
 
 function heading(title, subtitle, actions = '', eyebrow = 'YOUR NUTRITION, AT A GLANCE') {
@@ -237,7 +248,7 @@ function renderToday() {
     <div class="log-footer"><button class="btn secondary small" data-action="pick-food">${icon('plus')} Add another food</button><button class="text-button" data-action="copy-day">Copy another day</button></div></section>
     <aside><section class="card next-card"><span class="small-label">TO FINISH YOUR DAY</span><h2>${nextHeading}</h2><p>${nextCopy}</p><div id="suggestion-list" class="suggestion-list">${suggestionsList.map(x=>`<div class="suggestion">${tile(x.food)}<div class="suggestion-copy"><strong>${esc(x.food.name)}</strong><small>${num(x.food.portionGrams)} g · ${num(x.nutrition.protein,1)} g protein · ${num(x.nutrition.kcal)} kcal</small></div><button class="icon-btn" data-action="add-suggestion" data-id="${esc(x.food.id)}" aria-label="Add ${esc(x.food.name)}">${icon('plus')}</button></div>`).join('')}</div><div class="next-note">${r.fat < -1 ? 'You’re above the fat target today. A lean option can fit your remaining calories; there’s no need to make up for it tomorrow.' : 'Portions use your saved food values. Pick what suits your appetite and tolerance.'}</div></section>
     <section class="card goal-glance"><span class="small-label">YOUR WEIGHT GOAL</span><div class="weight-glance"><div><strong>${num(state.profile.weight,1)} <span style="font-size:11px">kg</span></strong><small>Current weight</small></div>${icon('right')}<div><strong>${num(state.profile.goalWeight,1)} <span style="font-size:11px">kg</span></strong><small>Goal weight</small></div></div><div class="goal-caption"><span>${num(state.profile.height,1)} cm · ${ageAt(state.profile.birthDate)} years</span><a href="#goals">View my goals ↗</a></div></section></aside></div>
-    <p class="subtle-note">Food values and energy needs are estimates. Calories follow food labels; macro calories can differ slightly because of fiber, food-specific factors and rounding. Carbs are total carbs.</p>`;
+    <p class="subtle-note">Food values and energy needs are estimates. Calories follow food labels; macro calories can differ slightly because of fiber, food-specific factors and rounding. Carbs are total carbs.</p>${weeklyIntakeDashboard({state,date:intakeWeekDate,today:todayKey(),dateText,icon,num,esc})}`;
 }
 
 function renderLog(entries) {
@@ -305,7 +316,7 @@ function renderEnergyCalculations(p) {
 }
 function renderCalculations(p) {
   const g=calculateGoals(p);
-  return renderEnergyCalculations(p)+`<div class="equation nutrient-equations"><strong>5. Fiber and daily limits</strong><code>Fiber goal = base calories × 14 ÷ 1,000<br>Saturated fat limit = base calories × 10% ÷ 9<br>Added sugar reference = base calories × 10% ÷ 4<br>Sodium limit = 2,300 mg per day</code><p>At ${num(g.kcal)} kcal: aim for <strong>${num(g.fiber,1)} g fiber</strong>; keep saturated fat below <strong>${num(g.saturatedFat,1)} g</strong>, added sugar below the <strong>${num(g.addedSugar,1)} g FDA label reference</strong>, and sodium below <strong>${num(g.sodium)} mg</strong>. Total sugar includes naturally occurring sugar and has no universal daily limit.</p><p>The added sugar bar scales the FDA label Daily Value of 50 g at 2,000 kcal. It is a comparison ceiling, not a recommended intake: current U.S. guidance favors avoiding added sugar. These adult planning references use your base calorie budget. In formula mode, weight, height, age, formula sex and activity affect that budget. In manual mode, they use your selected calories. There is no separate height, sex or weight multiplier for these nutrients. Completed exercise does not raise these targets.</p><p>${p.insulinResistance?'<strong>Insulin resistance guidance is on.</strong> Aim for at least 14 g fiber per 1,000 kcal, choose high-fiber, minimally processed carbohydrates, and limit sugary drinks. Insulin resistance alone does not establish different universal numerical limits; the checkbox keeps these guideline targets. A clinician may individualize your carbohydrate plan and limits.':'The insulin resistance option adds relevant food guidance. Evidence does not establish a separate universal numerical adjustment for insulin resistance.'}</p><p>Fiber and saturated fat are already included in total carbs and fats. Added sugar is part of total sugar. These fields do not add extra calories.</p></div><div class="source-links"><a href="https://cdn.realfood.gov/DGA.pdf" target="_blank" rel="noopener noreferrer">2025–2030 dietary guidance ↗</a><a href="https://www.fda.gov/food/nutrition-facts-label/added-sugars-nutrition-facts-label" target="_blank" rel="noopener noreferrer">FDA added sugar reference ↗</a><a href="https://doi.org/10.2337/dc26-S005" target="_blank" rel="noopener noreferrer">ADA 2026 nutrition guidance ↗</a><a href="./NUTRITION_SOURCES.md" target="_blank" rel="noopener noreferrer">Food estimates & sources ↗</a></div>`;
+  return renderEnergyCalculations(p)+`<div class="equation nutrient-equations"><strong>5. Fiber and daily limits</strong><code>Fiber goal = base calories × 14 ÷ 1,000<br>Saturated fat limit = base calories × 10% ÷ 9<br>Sodium limit = 2,300 mg per day</code><p>At ${num(g.kcal)} kcal: aim for <strong>${num(g.fiber,1)} g fiber</strong>; keep saturated fat below <strong>${num(g.saturatedFat,1)} g</strong>, and sodium below <strong>${num(g.sodium)} mg</strong>. Total sugar includes naturally occurring sugar and has no universal daily limit.</p><p>The total sugar bar shows sugar as a share of your carbohydrate budget; it is a visual reference, not a recommended sugar limit. These adult planning references use your base calorie budget. In formula mode, weight, height, age, formula sex and activity affect that budget. In manual mode, they use your selected calories. There is no separate height, sex or weight multiplier for these nutrients. Completed exercise does not raise these targets.</p><p>${p.insulinResistance?'<strong>Insulin resistance guidance is on.</strong> Aim for at least 14 g fiber per 1,000 kcal, choose high-fiber, minimally processed carbohydrates, and limit sugary drinks. Insulin resistance alone does not establish different universal numerical limits; the checkbox keeps these guideline targets. A clinician may individualize your carbohydrate plan and limits.':'The insulin resistance option adds relevant food guidance. Evidence does not establish a separate universal numerical adjustment for insulin resistance.'}</p><p>Fiber and saturated fat are already included in total carbs and fats. Added sugar is part of total sugar. These fields do not add extra calories.</p></div><div class="source-links"><a href="https://cdn.realfood.gov/DGA.pdf" target="_blank" rel="noopener noreferrer">2025–2030 dietary guidance ↗</a><a href="https://www.fda.gov/food/nutrition-facts-label/added-sugars-nutrition-facts-label" target="_blank" rel="noopener noreferrer">FDA added sugar reference ↗</a><a href="https://doi.org/10.2337/dc26-S005" target="_blank" rel="noopener noreferrer">ADA 2026 nutrition guidance ↗</a><a href="./NUTRITION_SOURCES.md" target="_blank" rel="noopener noreferrer">Food estimates & sources ↗</a></div>`;
 }
 function renderGoals() {
   const p = state.profile;
@@ -462,7 +473,7 @@ function updateCustomEnergyPreview() {
 }
 function setLibraryExerciseArchived(id,archived) {
   const exercise=exerciseCatalog(state.workouts).find(e=>e.id===id);if(!exercise)return;
-  undoState=structuredClone(state);
+  rememberUndo();
   const defaults=workoutTarget(id),saved=validateExercise({...exercise,sets:exercise.sets??defaults.sets,reps:exercise.reps??defaults.reps,restSeconds:exercise.restSeconds??defaults.restSeconds??60,archived});
   const existing=state.workouts.exercises.some(e=>e.id===id);
   if(!existing)undoState.workouts.exercises.push(validateExercise({...saved,reset:true,energy:null,archived:false}));
@@ -646,13 +657,13 @@ document.addEventListener('click',event=>{
   if(needsSetup&&['pick-food','food-portion','add-suggestion','copy-day','log-weight','pick-exercise','choose-exercise','library-add-workout','suggest-workout-week','copy-workout-week','load-starter-routine'].includes(action)){location.hash='goals';toast('Save your profile or restore your backup first.');return;}
   try {
     if(action==='view-calorie-workouts'){workoutDate=selectedDate;location.hash='workouts';return;}
-    if(action==='workout-food-day'){selectedDate=workoutDate;location.hash='today';return;}
+    if(action==='workout-food-day'){setDate(workoutDate);return;}
     if(action==='load-starter-routine') {
       const count=weekDates(workoutDate).flatMap(date=>workoutEntries(date)).length;
       openDialog(dialogHeading('Load the glutes & chest starter plan?',`The supplied plan includes 22 exercises and activities across this week.`)+`<p class="subtle-note">This replaces ${count} scheduled entries in this week, selects muscle preservation, starting out and dumbbells/bodyweight, and enables weekly repeat. Your other weeks are kept. Undo is available.</p><div class="dialog-footer"><button class="btn secondary" data-action="close-dialog">Cancel</button><button class="btn primary" data-action="confirm-starter-routine">Load starter plan</button></div>`);return;
     }
     if(action==='confirm-starter-routine') {
-      undoState=structuredClone(state);
+      rememberUndo();
       const dates=weekDates(workoutDate),w=state.workouts;
       w.settings={...w.settings,goal:'preserve',experience:'beginner',equipment:'dumbbells',autoRepeat:true};w.template=null;
       for(const day of dates){delete w.days[day];delete w.notes[day];}
@@ -681,7 +692,7 @@ document.addEventListener('click',event=>{
     if(action==='reset-library-exercise') {
       const original=EXERCISE_PRESETS.find(e=>e.id===id);if(!original)return;
       const restored=validateExercise({...original,reset:true,energy:null,archived:false});
-      undoState=structuredClone(state);state.workouts.exercises=state.workouts.exercises.map(e=>e.id===id?restored:e);
+      rememberUndo();state.workouts.exercises=state.workouts.exercises.map(e=>e.id===id?restored:e);
       save();closeDialog();render();toast('Original preset restored.',false,true);return;
     }
     if(action==='archive-exercise') {
@@ -713,7 +724,7 @@ document.addEventListener('click',event=>{
         const count=Object.values(state.workouts.days).flat().length;
         openDialog(dialogHeading('Clear all scheduled workouts?',`${count} exercises will be removed from all dates.`)+`<p class="subtle-note">Your exercise library and saved routine stay available. Automatic weekly repeat will be paused. You can undo this clear immediately afterward.</p><div class="dialog-footer"><button class="btn secondary" data-action="close-dialog">Cancel</button><button class="btn danger" data-action="confirm-clear-workouts" data-scope="all">Clear all scheduled workouts</button></div>`);return;
       }
-      undoState=structuredClone(state);state.workouts=clearWorkoutSchedule(state.workouts,scope,workoutDate);save();closeDialog();render();toast(scope==='all'?'All scheduled workouts cleared. Weekly repeat is paused.':`${scope==='week'?'Week':'Day'} cleared. It will stay empty until you add exercises.`,false,true);return;
+      rememberUndo();state.workouts=clearWorkoutSchedule(state.workouts,scope,workoutDate);save();closeDialog();render();toast(scope==='all'?'All scheduled workouts cleared. Weekly repeat is paused.':`${scope==='week'?'Week':'Day'} cleared. It will stay empty until you add exercises.`,false,true);return;
     }
     if(action==='upload-avatar')return $('#avatar-file').click();
     if(action==='remove-avatar') {
@@ -758,7 +769,7 @@ document.addEventListener('click',event=>{
       return;
     }
     if(action==='remove-workout') {
-      undoState=structuredClone(state);
+      rememberUndo();
       state.workouts.days[workoutDate]=workoutEntries().filter(e=>e.id!==id);
       if(!state.workouts.days[workoutDate].length)delete state.workouts.days[workoutDate];
       save();render();toast('Exercise removed.',false,true);return;
@@ -779,7 +790,7 @@ document.addEventListener('click',event=>{
         : copyWorkoutWeek(w.days,workoutDate,todayKey(),exerciseCatalog(w));
       const count=Object.values(additions).flat().length;
       if(!count)return toast(action==='suggest-workout-week'?'No empty upcoming session days in this week. Choose another week or add exercises yourself.':'No exercises to copy into empty upcoming days next week.');
-      undoState=structuredClone(state);Object.assign(state.workouts.days,additions);
+      rememberUndo();Object.assign(state.workouts.days,additions);
       if(routine)Object.assign(w.notes,routine.notes);
       if(action==='copy-workout-week')for(const day of weekDates(from)){const target=shiftDate(day,7);if(target>=todayKey()&&w.notes[day]&&!w.notes[target]&&(additions[target]||!w.days[target]?.length))w.notes[target]=structuredClone(w.notes[day]);}
       w.skippedWeeks=w.skippedWeeks.filter(week=>week!==weekDates(action==='copy-workout-week'?shiftDate(from,7):from)[0]);
@@ -795,38 +806,49 @@ document.addEventListener('click',event=>{
     if(action==='next-day') return setDate(shiftDate(selectedDate,1));
     if(action==='today') return setDate(todayKey());
     if(action==='open-day') return setDate(date);
+    if(['weekly-prev','weekly-next','weekly-current'].includes(action)) {
+      intakeWeekDate=action==='weekly-current'?todayKey():shiftDate(intakeWeekDate,action==='weekly-prev'?-7:7);
+      renderIntakeWeek(action);return;
+    }
+    if(action==='weekly-open-day') {
+      setDate(date);$('.summary-card')?.scrollIntoView({behavior:state.preferences.reduceMotion?'instant':'smooth',block:'start'});return;
+    }
     if(action==='log-weight') return showWeightDialog();
     if(action==='backup') return backup();
     if(action==='copy-day') return showCopyDialog();
     if(action==='import') return $('#backup-file').click();
     if(action==='restore-confirm') {
       if(!pendingImport)return;
-      undoState=structuredClone(state);state=pendingImport;needsSetup=state.profileReady===false;pendingImport=null;loadError='';save();closeDialog();render();toast('Backup restored.',false,true);return;
+      rememberUndo(true);state=pendingImport;needsSetup=state.profileReady===false;pendingImport=null;loadError='';save();closeDialog();render();toast('Backup restored.',false,true);return;
     }
     if(action==='undo') {
-      if(!undoState)return;state=undoState;needsSetup=state.profileReady===false;undoState=null;save();render();toast('Restored.');return;
+      if(!undoState)return;
+      const completed=closedIntakeThrough(state);
+      state=undoState;
+      if(!undoRestoresJournal)state.intakeClosedThrough=[completed,closedIntakeThrough(state)].filter(Boolean).sort().at(-1)||null;
+      needsSetup=state.profileReady===false;undoState=null;undoRestoresJournal=false;save();render();toast('Restored.');return;
     }
     if(action==='food-filter') { foodFilter=button.dataset.filter;renderFoods();return; }
     if(action==='favorite') { const f=state.foods.find(f=>f.id===id);f.favorite=!f.favorite;save();renderFoods();return; }
     if(action==='portion-preset') { $('#amount').value=button.dataset.amount;updatePortionPreview();return; }
     if(action==='edit-entry') { const e=currentDay().entries.find(e=>e.id===id);if(e)showPortion(e.food,e);return; }
     if(action==='remove-entry') {
-      undoState=structuredClone(state);const day=currentDay(true);day.entries=day.entries.filter(e=>e.id!==id);save();render();toast('Food removed.',false,true);return;
+      rememberUndo();const day=currentDay(true);day.entries=day.entries.filter(e=>e.id!==id);save();render();toast('Food removed.',false,true);return;
     }
     if(action==='delete-food') {
-      undoState=structuredClone(state);state.foods=state.foods.filter(f=>f.id!==id);save();closeDialog();render();toast('Saved food removed. Your recorded entries are kept.',false,true);return;
+      rememberUndo();state.foods=state.foods.filter(f=>f.id!==id);save();closeDialog();render();toast('Saved food removed. Your recorded entries are kept.',false,true);return;
     }
     if(action==='delete-weight') {
       if(state.weights.length===1)return toast('Keep at least one measurement in your weight journal.',true);
       const weights=state.weights.filter(w=>w.date!==date);
       const p=validateProfile({...state.profile,weight:weights.at(-1).weight});calculateGoals(p);
-      undoState=structuredClone(state);state.weights=weights;state.profile=p;
+      rememberUndo();state.weights=weights;state.profile=p;
       applyTodaysGoals(p);
       save();render();toast('Weight measurement removed.',false,true);return;
     }
     if(action==='add-suggestion') {
       const f=state.foods.find(f=>f.id===id);
-      currentDay(true).entries.push(newEntry(f,1,'portion','Other'));save();render();toast(`${f.name} added.`);return;
+      currentDay(true).entries.push(newEntry(f,1,'portion','Other'));closeIntakeDays(state,selectedDate);save();render();toast(`${f.name} added.`);return;
     }
   } catch(error) { toast(error.message,true); }
 });
@@ -1028,6 +1050,7 @@ document.addEventListener('submit',async event=>{
       const entry=newEntry(pickerFood,data.amount,data.unit,data.meal,editingEntryId||crypto.randomUUID());
       const day=currentDay(true);
       if(editingEntryId)day.entries=day.entries.map(e=>e.id===editingEntryId?entry:e);else day.entries.push(entry);
+      closeIntakeDays(state,selectedDate);
       save();closeDialog();render();toast(editingEntryId?'Portion updated.':`${pickerFood.name} added.`);
     }
     if(form.id==='food-form') {
@@ -1060,7 +1083,8 @@ document.addEventListener('submit',async event=>{
     }
     if(form.id==='copy-form') {
       const date=$('#copy-date').value,entries=state.days[date].entries;
-      undoState=structuredClone(state);currentDay(true).entries.push(...entries.map(e=>newEntry(e.food,e.amount,e.unit,e.meal)));
+      rememberUndo();currentDay(true).entries.push(...entries.map(e=>newEntry(e.food,e.amount,e.unit,e.meal)));
+      if(entries.length)closeIntakeDays(state,selectedDate);
       save();closeDialog();render();toast('Foods copied into this day.',false,true);
     }
   } catch(error) {
@@ -1079,7 +1103,7 @@ window.addEventListener('appearance-theme-change',event=>{
 window.addEventListener('hashchange',()=>{route=location.hash.slice(1)||'today';render();});
 window.addEventListener('storage',event=>{
   if(event.key!==STORAGE_KEY||!event.newValue||journalSync?.isSignedIn())return;
-  try{state=validateState(JSON.parse(event.newValue));needsSetup=state.profileReady===false;render();toast('Journal updated from another tab.');}catch{toast('Another tab saved invalid data. Your current view is kept.',true);}
+  try{state=validateCloudJournal(JSON.parse(event.newValue),state);needsSetup=state.profileReady===false;render();toast('Journal updated from another tab.');}catch{toast('Another tab saved invalid data. Your current view is kept.',true);}
 });
 $('#dialog').addEventListener('click',event=>{if(event.target===$('#dialog'))closeDialog();});
 $('#dialog').addEventListener('close',()=>{lastFocused?.isConnected&&lastFocused.focus();});

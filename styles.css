@@ -531,3 +531,23 @@ html[data-density="compact"] .library-card-image{height:160px}
 .nutrition-condition small{max-width:50ch}
 .nutrient-equations code{white-space:normal;overflow-wrap:anywhere}
 @media(max-width:700px){.secondary-nutrients{gap:12px 15px}.food-card-nutrients{grid-template-columns:1fr}.extra-nutrient-fields{padding:12px}.nutrient-top{gap:2px 6px}}
+
+/* Give the nutrient meters room, with daily energy stacked in a narrow column. */
+.summary-card .calorie-area{flex-direction:column;justify-content:center;gap:18px;text-align:center}
+.summary-card .calorie-copy{width:100%;max-width:240px}
+.summary-card .calorie-copy p{margin:10px 0 14px}
+.summary-card .remaining-number{line-height:1.25}
+.summary-card .tiny-pill{justify-content:center;white-space:normal}
+@media(min-width:951px){
+ .summary-card .summary-main{grid-template-columns:minmax(180px,.7fr) minmax(0,1.6fr);gap:32px;padding:30px}
+ .summary-card .calorie-area{padding:15px 27px 15px 0}
+ .summary-card .ring{width:155px;height:155px;flex-shrink:0}
+ .summary-card .calorie-copy{max-width:210px}
+ .summary-card .remaining-number{font-size:calc(30px * var(--heading-scale,1))}
+}
+@media(max-width:950px){
+ .summary-card .calorie-area{gap:12px;padding:0 0 23px}
+ .summary-card .ring{width:140px;height:140px}
+ .summary-card .calorie-copy p{display:none}
+ .summary-card .calorie-copy .tiny-pill{margin-top:12px}
+}

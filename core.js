@@ -1,7 +1,7 @@
-import { validatePreferences } from './preferences.js?v=14';
-import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=14';
-import { FOOD_NUTRIENTS } from './food-nutrients.js?v=14';
-export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=14';
+import { validatePreferences } from './preferences.js?v=15';
+import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=15';
+import { FOOD_NUTRIENTS } from './food-nutrients.js?v=15';
+export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=15';
 
 export const STORAGE_KEY = 'daily-balance-v1';
 export const TIME_ZONE = 'Asia/Tashkent';
@@ -157,6 +157,34 @@ export function shiftDate(date, count) {
   const d = new Date(`${date}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + count);
   return d.toISOString().slice(0, 10);
+}
+
+export function closedIntakeThrough(state, today = todayKey()) {
+  if (!isDateKey(today)) throw new Error('Choose a valid current intake date.');
+  const latest = shiftDate(today, -1);
+  if (Object.hasOwn(state || {}, 'intakeClosedThrough')) {
+    const marker = state.intakeClosedThrough;
+    if (marker === null) return null;
+    if (!isDateKey(marker)) throw new Error('Saved intake completion date is invalid.');
+    return marker > latest ? latest : marker;
+  }
+  // Legacy journals did not record completion events. Only a real, nonfuture
+  // food log can establish that the preceding days had ended.
+  let newest = null;
+  for (const [date, day] of Object.entries(state?.days || {})) {
+    if (isDateKey(date) && date <= today && Array.isArray(day?.entries) && day.entries.length && (!newest || date > newest)) newest = date;
+  }
+  return newest ? shiftDate(newest, -1) : null;
+}
+
+export function closeIntakeDays(state, date, today = todayKey()) {
+  if (!state || typeof state !== 'object' || Array.isArray(state)) throw new Error('Journal is missing.');
+  if (!isDateKey(date)) throw new Error('Choose a valid food date.');
+  const previous = closedIntakeThrough(state, today);
+  if (date > today) return previous;
+  const through = shiftDate(date, -1);
+  state.intakeClosedThrough = previous && previous > through ? previous : through;
+  return state.intakeClosedThrough;
 }
 
 function numberIn(value, min, max, label) {
@@ -527,12 +555,12 @@ export function clearWorkoutSchedule(workouts,scope,date) {
 }
 
 export function createInitialState() {
-  return { version: 1, profileReady: false,
+  return { version: 1, profileReady: false, intakeClosedThrough: null,
     profile: structuredClone(DEFAULT_PROFILE), foods: structuredClone(DEFAULT_FOODS),
     days: {}, weights: [], workouts:validateWorkouts(), preferences:validatePreferences(), createdAt: new Date().toISOString() };
 }
 
-export function validateState(value) {
+export function validateState(value, today = todayKey()) {
   if (!value || value.version !== 1 || !Array.isArray(value.foods) || !Array.isArray(value.weights)) throw new Error('Choose a Daily Balance backup file.');
   const profile = validateProfile(value.profile);
   calculateGoals(profile);
@@ -569,7 +597,7 @@ export function validateState(value) {
     if (!isDateKey(w.date)) throw new Error('Weight date is invalid.');
     return { date: w.date, weight: numberIn(w.weight, 30, 250, 'Recorded weight') };
   }).sort((a, b) => a.date.localeCompare(b.date));
-  return { version: 1, profileReady: value.profileReady !== false, profile, foods, days, weights,
+  return { version: 1, profileReady: value.profileReady !== false, intakeClosedThrough: closedIntakeThrough({...value,days}, today), profile, foods, days, weights,
     workouts:validateWorkouts(value.workouts), preferences:validatePreferences(value.preferences), createdAt: String(value.createdAt || '') };
 }
 

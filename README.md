@@ -19,11 +19,41 @@ Supabase is configured. Signed-out use continues to save in this browser.
 Open **Settings** to customize your own light and dark palettes, text sizes,
 spacing, animations and profile photo.
 
+## Weekly calorie picture
+
+At the bottom of **Daily intake**, the Monday–Sunday calculator shows each
+finished day's food calories, the daily average, and an estimated weekly
+deficit, maintenance, or surplus. Use the week arrows to review other weeks.
+
+A day enters the calculator only after you first log food on a later real
+calendar day. The latest day stays in progress, even after midnight, until that
+later food record exists. Planning a future food entry does not finish a day.
+Missing, future and in-progress days show a dash and are excluded from both the
+average and the matched maintenance estimate. For example, Monday's 1,800 kcal
+and Tuesday's unfinished 500 kcal do not average together: Monday is counted
+when Tuesday's first food is logged, and Tuesday remains excluded.
+
+Totals are read-only in the calculator. **Open journal** for a date to add,
+correct or remove its food portions, including past dates; the weekly totals
+then recalculate from those entries. Completion is saved across reloads and
+sync, so deleting the later day's food does not reopen an earlier day.
+Older journals infer completion from their latest nonfuture food date.
+
+Maintenance uses Mifflin–St Jeor with the dated weight record, formula sex,
+height, age and usual activity. It is independent of the selected calorie
+budget and deficit. The sedentary activity setting adds only completed net
+exercise estimates; higher activity settings already include exercise and do
+not add it again. Intake within 5% of the matched maintenance estimate is shown
+as estimated maintenance. A partial week projects its counted-day intake and
+maintenance averages over seven days and is clearly marked as a projection.
+It is not a prediction of exact weight change.
+
 ## Daily nutrients
 
-Below the main macro bars, smaller white bars compare **fiber**, **saturated
-fat**, **added sugar**, and **sodium** with daily planning references. **Total
-sugar** is tracked separately without a universal daily limit. All five are
+Below the main macro bars, smaller white bars show **fiber**, **saturated
+fat**, **total sugar**, and **sodium**. Total sugar uses the carbohydrate budget
+as a visual reference; it is not a recommended daily sugar limit. Added sugar
+remains an optional saved-label field without a dashboard bar. All five are
 shown on saved-food cards and in the portion preview. They are already included
 in the calorie and macro values; tracking them does not add calories again.
 
@@ -31,13 +61,11 @@ in the calorie and macro values; tracking them does not add calories again.
 | --- | --- |
 | Fiber | At least 14 g per 1,000 base kcal |
 | Saturated fat | Below 10% of base calories, divided by 9 kcal/g |
-| Added sugar | FDA label reference: 50 g at 2,000 kcal, scaled to the base budget |
+| Added sugar | Optional food-label field; no dashboard bar |
 | Sodium | Below 2,300 mg |
-| Total sugar | Amount tracked; no universal daily reference limit |
+| Total sugar | Bar relative to carbohydrate budget; no universal daily reference limit |
 
-These are adult planning references. The added-sugar reference is a comparison
-ceiling, not a recommended amount to eat; current U.S. guidance favors avoiding
-added sugar. Formula-mode targets follow the calorie budget estimated from
+These are adult planning references. Formula-mode targets follow the calorie budget estimated from
 weight, height, age, formula sex, activity and deficit. Manual-mode targets follow
 the selected calorie budget. There is no additional weight/height/sex multiplier
 for these nutrients. Exercise calorie credits do not raise these references.
@@ -90,6 +118,7 @@ extracted folder. Its files should include:
 | `app.js` | Website interactions and browser storage |
 | `core.js` | Food and exercise catalogs, formulas and validation |
 | `food-nutrients.js`, `NUTRITION_SOURCES.md` | Extra-nutrient estimates, assumptions and dietary references |
+| `weekly-intake.js`, `weekly-intake-view.js`, `weekly-intake.css` | Finished-day weekly averages, maintenance estimates and dashboard |
 | `workout-plan.js`, `workout-view.js` | Starter routine, technique instructions and workout dashboard |
 | `exercise-library-view.js`, `exercise-energy.js` | Exercise dashboard and completed-workout calorie adjustments |
 | `assets/exercises/` | Bundled exercise illustrations |
