@@ -17,7 +17,7 @@ import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './app
 import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=16';
 import {exerciseEnergy,exerciseActiveMinutes,exerciseWeightForDate,workoutDayEnergy,dailyCalorieBalance} from './exercise-energy.js?v=16';
 import {exerciseLibraryDashboard,exerciseLibraryResults,exerciseLibraryCount} from './exercise-library-view.js?v=16';
-import {weeklyIntakeDashboard} from './weekly-intake-view.js?v=16';
+import {weeklyIntakeDashboard} from './weekly-intake-view.js?v=17';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));

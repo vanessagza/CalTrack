@@ -88,7 +88,17 @@ with sync_playwright() as p:
     expect(page.locator('[data-weekly-goal-maintenance]')).to_have_text('2,172')
     goal_reference = row('2026-10-12').locator('[data-weekly-goal-rmr]')
     assert float(goal_reference.get_attribute('data-kcal')) == 1401.5
-    assert 'RMR at goal weight' in row('2026-10-12').locator('[role="img"]').get_attribute('aria-label')
+    tdee_reference = row('2026-10-12').locator('[data-weekly-goal-tdee]')
+    assert abs(float(tdee_reference.get_attribute('data-kcal')) - 2172.325) < 0.011
+    maximum = 2172.325 * 1.1
+    rmr_bottom = goal_reference.evaluate('(el)=>parseFloat(el.style.bottom)')
+    tdee_bottom = tdee_reference.evaluate('(el)=>parseFloat(el.style.bottom)')
+    assert abs(rmr_bottom - 1401.5 / maximum * 100) < 0.011
+    assert abs(tdee_bottom - 2172.325 / maximum * 100) < 0.011
+    assert 0 < rmr_bottom < tdee_bottom < 100
+    chart_description = row('2026-10-12').locator('[role="img"]').get_attribute('aria-label')
+    assert all(label in chart_description for label in ['goal weight', 'RMR', 'TDEE'])
+    expect(page.locator('.weekly-intake-chart-heading')).to_contain_text('Maintenance at goal weight · TDEE')
     average(1950)
     expect(row('2026-10-12')).to_contain_text('1,900')
     expect(row('2026-10-14')).to_contain_text('2,000')
@@ -98,6 +108,8 @@ with sync_playwright() as p:
                          ('2026-10-14', 'included'), ('2026-10-15', 'open'),
                          ('2026-10-17', 'future')]:
         expect(row(date)).to_have_attribute('data-status', status)
+        expect(row(date).locator('[data-weekly-goal-rmr]')).to_have_count(1 if status == 'included' else 0)
+        expect(row(date).locator('[data-weekly-goal-tdee]')).to_have_count(1 if status == 'included' else 0)
 
     # An 1,800 kcal average exceeds the 1,600 kcal budget but is below maintenance.
     # Classification must use estimated TDEE, rather than the selected calorie target.

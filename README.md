@@ -39,10 +39,12 @@ then recalculate from those entries. Completion is saved across reloads and
 sync, so deleting the later day's food does not reopen an earlier day.
 Older journals infer completion from their latest nonfuture food date.
 
-The dashed chart line shows **RMR at your goal weight**. The goal reference strip
-also shows **maintenance TDEE at your goal weight**, and both update when you
+Two distinct dashed chart lines show **RMR at your goal weight** and
+**maintenance TDEE at your goal weight**. The legend identifies both, and the
+chart scale leaves room above the higher reference. The goal reference strip
+also shows both values, which update when you
 change and save goal weight. RMR estimates resting energy; it is not a daily
-intake limit. The chart's reference does not decide deficit or surplus.
+intake limit. The chart references do not decide deficit or surplus.
 
 The current-weight maintenance comparison uses Mifflin–St Jeor with the dated weight record, formula sex,
 height, age and usual activity. It is independent of the selected calorie

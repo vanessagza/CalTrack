@@ -26,7 +26,7 @@ const food=validateFood({id:'custom-goal-energy',name:'Goal energy test food',ca
   fiber:1,saturatedFat:0.5,sugar:2,addedSugar:0,sodium:10,
   note:'Browser test label',source:'',verified:false,favorite:true});
 state.foods.push(food);state.days={};
-for(const [date,amount] of [['2026-10-12',1800],['2026-10-14',2000]])
+for(const [date,amount] of [['2026-10-12',1800],['2026-10-14',2400]])
   state.days[date]={entries:[newEntry(food,amount,'g','Other','goal-energy-'+date)],
     goals:calculateGoals(state.profile,date),note:''};
 console.log(JSON.stringify(state));
@@ -78,17 +78,36 @@ with sync_playwright() as p:
         near(amount('[data-current-rmr]'), 1451.5, 0.51)
         near(amount('[data-current-tdee]'), 2249.825, 0.51)
 
-    def goal_line(date):
-        return page.locator('[data-weekly-date="' + date + '"] [data-weekly-goal-rmr]')
+    def goal_line(date, reference='rmr'):
+        return page.locator('[data-weekly-date="' + date + '"] [data-weekly-goal-' + reference + ']')
+
+    def reference_lines(rmr, tdee):
+        maximum = 2400 * 1.1
+        positions = {}
+        for reference, value in [('rmr', rmr), ('tdee', tdee)]:
+            line = goal_line('2026-10-12', reference)
+            near(line.get_attribute('data-kcal'), value)
+            position = line.evaluate('(el)=>parseFloat(el.style.bottom)')
+            near(position, value / maximum * 100)
+            assert 0 < position < 100, (reference, position)
+            positions[reference] = position
+        assert positions['tdee'] > positions['rmr']
+        chart_description = goal_line('2026-10-12').locator('..').get_attribute('aria-label')
+        assert all(label in chart_description for label in ['goal weight', 'RMR', 'TDEE'])
+        styles = page.evaluate('''() => ['rmr','tdee'].map(reference => {
+          const style=getComputedStyle(document.querySelector('[data-weekly-date="2026-10-12"] [data-weekly-goal-'+reference+']'));
+          return [style.backgroundImage,style.borderTopStyle,style.borderTopWidth,style.borderTopColor].join('|');
+        })''')
+        assert styles[0] != styles[1], styles
+        return positions
 
     # Current maintenance compares real intake with the current body's expenditure.
-    expect(page.locator('[data-weekly-average]')).to_have_text('1,900')
+    expect(page.locator('[data-weekly-average]')).to_have_text('2,100')
     near(amount('[data-weekly-maintenance]'), 2249.825, 0.51)
     classification = page.locator('[data-weekly-classification]').inner_text()
     expect(page.locator('[data-weekly-classification]')).to_have_attribute('data-status', 'deficit')
     expect(page.locator('#weekly-intake input')).to_have_count(0)
-    near(goal_line('2026-10-12').get_attribute('data-kcal'), 1401.5)
-    original_line_bottom = goal_line('2026-10-12').evaluate('(el)=>parseFloat(el.style.bottom)')
+    original_lines = reference_lines(1401.5, 2172.325)
     original_journal = copy.deepcopy(state()['days'])
     original_weights = copy.deepcopy(state()['weights'])
 
@@ -114,15 +133,15 @@ with sync_playwright() as p:
     expect(page.locator('#goalWeight')).to_have_value('60')
     energy_cards(1351.5, 2094.825, 1875)
 
-    # The chart line follows goal RMR, while actual deficit/maintenance stays unchanged.
+    # Both goal references move; actual deficit/maintenance stays unchanged.
     page.locator('[data-nav="today"]').click()
     expect(page.locator('[data-base-calories]')).to_have_text('1,875 kcal')
-    expect(page.locator('[data-weekly-average]')).to_have_text('1,900')
+    expect(page.locator('[data-weekly-average]')).to_have_text('2,100')
     near(amount('[data-weekly-maintenance]'), 2249.825, 0.51)
     expect(page.locator('[data-weekly-classification]')).to_have_text(classification, use_inner_text=True)
-    near(goal_line('2026-10-12').get_attribute('data-kcal'), 1351.5)
-    moved_line_bottom = goal_line('2026-10-12').evaluate('(el)=>parseFloat(el.style.bottom)')
-    assert moved_line_bottom < original_line_bottom, (original_line_bottom, moved_line_bottom)
+    moved_lines = reference_lines(1351.5, 2094.825)
+    for reference in ['rmr', 'tdee']:
+        assert moved_lines[reference] < original_lines[reference], (original_lines, moved_lines)
     expect(page.locator('[data-weekly-date="2026-10-12"]')).to_have_attribute('data-status', 'included')
     expect(page.locator('.weekly-count-badge')).to_contain_text('2 / 7')
     page.screenshot(path='/tmp/caltrack-goal-energy-week.png', full_page=True)
@@ -147,10 +166,15 @@ with sync_playwright() as p:
         if width == 390:
             page.screenshot(path='/tmp/caltrack-goal-energy-mobile.png', full_page=True)
 
+    page.locator('[data-nav="today"]').click()
+    reference_lines(1401.5, 2172.325)
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    page.screenshot(path='/tmp/caltrack-goal-energy-lines-mobile.png', full_page=True)
+
     assert not errors, errors
     browser.close()
 
 server.shutdown()
 server.server_close()
 print('PASS: live goal-weight RMR/TDEE and formula budget, current-maintenance separation, '
-      'goal-RMR chart reference, persistence, historical snapshots, manual budget and phone layouts')
+      'both goal-energy chart references, persistence, historical snapshots, manual budget and phone layouts')
