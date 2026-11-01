@@ -1,8 +1,10 @@
-import { validateState,closedIntakeThrough,todayKey } from './core.js?v=16';
-import { validatePreferences,DEFAULT_PREFERENCES } from './preferences.js?v=16';
+import { validateState,closedIntakeThrough,todayKey } from './core.js?v=18';
+import { validatePreferences,DEFAULT_PREFERENCES } from './preferences.js?v=18';
 
 const NUTRITION_FIELDS=['fiber','saturatedFat','sugar','addedSugar','sodium','nutrientNote','nutrientSource'];
 const NUTRIENT_GOALS=['fiber','saturatedFat','sugar','addedSugar','sodium'];
+const COMPOSITION_FIELDS=['goalMode','bodyFatPercent','startBodyFatPercent','goalBodyFatPercent','muscleMass','startMuscleMass','goalMuscleMass'];
+const MEASUREMENT_FIELDS=['bodyFatPercent','muscleMass'];
 const record=value=>value&&typeof value==='object'&&!Array.isArray(value);
 const sameFoodNutrition=(a,b)=>record(a)&&record(b)&&a.id===b.id&&
   String(a.name||'').trim()===String(b.name||'').trim()&&a.category===b.category&&String(a.source||'')===String(b.source||'')&&
@@ -29,10 +31,29 @@ export function rebaseAppearance(base,local,remote) {
 export function validateCloudJournal(value,previous,today=todayKey()) {
   if(!previous)return validateState(value,today);
   const raw={...value};
+  const supportsComposition=record(raw.profile)&&Object.hasOwn(raw.profile,'goalMode');
   // A legacy tab may add newer logs or remove old ones. It can advance a
   // completion watermark through inference, but omission cannot move it back.
   if(!Object.hasOwn(raw,'intakeClosedThrough'))raw.intakeClosedThrough=[closedIntakeThrough(raw,today),closedIntakeThrough(previous,today)].filter(Boolean).sort().at(-1)||null;
   if(record(raw.profile)&&!Object.hasOwn(raw.profile,'insulinResistance')&&Object.hasOwn(previous.profile||{},'insulinResistance'))raw.profile={...raw.profile,insulinResistance:previous.profile.insulinResistance};
+  if(record(raw.profile)) {
+    raw.profile={...raw.profile};
+    for(const key of COMPOSITION_FIELDS)if(!Object.hasOwn(raw.profile,key)&&Object.hasOwn(previous.profile||{},key))raw.profile[key]=previous.profile[key];
+  }
+  const savedMeasurements=new Map((previous.weights||[]).map(measurement=>[measurement.date,measurement]));
+  // Current clients normalize a blank optional measurement to omission. Only
+  // legacy clients need omission repaired; otherwise clearing a reading would
+  // restore it at the next sync after JSON validation removed its null fields.
+  if(!supportsComposition&&Array.isArray(raw.weights))raw.weights=raw.weights.map(measurement=>{
+    if(!record(measurement))return measurement;
+    const saved=savedMeasurements.get(measurement.date);
+    // Composition belongs to this measurement. An older client editing the
+    // weight must not silently attach a previous reading's fat or muscle values.
+    if(!saved||measurement.weight===null||measurement.weight===''||Number(measurement.weight)!==Number(saved.weight))return measurement;
+    const restored={...measurement};
+    for(const key of MEASUREMENT_FIELDS)if(!Object.hasOwn(measurement,key)&&Object.hasOwn(saved,key))restored[key]=saved[key];
+    return restored;
+  });
   const savedFoods=new Map((previous.foods||[]).map(food=>[food.id,food]));
   if(Array.isArray(raw.foods))raw.foods=raw.foods.map(food=>preserveFoodNutrition(food,savedFoods.get(food?.id)));
   if(record(raw.days))raw.days=Object.fromEntries(Object.entries(raw.days).map(([date,day])=>{

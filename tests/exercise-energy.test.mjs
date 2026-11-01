@@ -45,6 +45,35 @@ test('only completed exercises credit their own day and repeated calculation nev
   close(dailyCalorieBalance(state,'2026-10-14').exercise.creditedKcal,0);
   state.workouts.days[date][0].completed=false;close(dailyCalorieBalance(state,date).remainingKcal,base-72);
 });
+test('whole-day activity factors retain workout estimates without crediting habitual exercise twice',()=>{
+  for(const activity of [1.25,1.3,1.375,1.45,1.55,1.65,1.725,1.8,1.9]) {
+    for(const calorieMode of ['manual','calculated']) {
+      const state=fixture();
+      state.profile.activity=activity;state.profile.calorieMode=calorieMode;
+      state.workouts.days[date][0].completed=true;
+      state.days[date].entries=[newEntry(state.foods.find(f=>f.id==='egg'),1,'portion','Lunch','food-one')];
+      const before=JSON.stringify(state),raw=workoutDayEnergy(state,date),balance=dailyCalorieBalance(state,date);
+      assert.ok(raw.creditedKcal>0);
+      close(balance.exercise.estimatedKcal,raw.creditedKcal);
+      close(balance.exercise.creditedKcal,0);
+      assert.equal(balance.exercise.activityIncluded,true);
+      close(balance.adjustedKcal,balance.baseKcal);
+      close(balance.remainingKcal,balance.baseKcal-72);
+      assert.equal(JSON.stringify(state),before);
+    }
+  }
+});
+test('sedentary baseline still credits completed estimates and leaves planned exercise uncredited',()=>{
+  const state=fixture();state.profile.activity=1.2;
+  const planned=dailyCalorieBalance(state,date);
+  close(planned.exercise.estimatedKcal,0);close(planned.exercise.creditedKcal,0);
+  assert.equal(planned.exercise.activityIncluded,false);
+  state.workouts.days[date][0].completed=true;
+  const completed=dailyCalorieBalance(state,date),raw=workoutDayEnergy(state,date);
+  close(completed.exercise.estimatedKcal,raw.creditedKcal);
+  close(completed.exercise.creditedKcal,raw.creditedKcal);
+  close(completed.adjustedKcal,completed.baseKcal+raw.creditedKcal);
+});
 test('editing, deleting and copying completed exercises recalculate credits; backups preserve them without storing a second calorie total',()=>{
   const state=fixture();state.workouts.days[date][0].completed=true;
   const initial=workoutDayEnergy(state,date).creditedKcal;

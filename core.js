@@ -1,7 +1,7 @@
-import { validatePreferences } from './preferences.js?v=16';
-import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=16';
-import { FOOD_NUTRIENTS } from './food-nutrients.js?v=16';
-export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=16';
+import { validatePreferences } from './preferences.js?v=18';
+import { EXERCISE_DETAILS, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=18';
+import { FOOD_NUTRIENTS } from './food-nutrients.js?v=18';
+export { WARMUP_TEXT, PRESERVATION_ROUTINE, matchesStarterRoutine } from './workout-plan.js?v=18';
 
 export const STORAGE_KEY = 'daily-balance-v1';
 export const TIME_ZONE = 'Asia/Tashkent';
@@ -55,6 +55,8 @@ export const DEFAULT_PROFILE = {
   calorieMode: 'manual', calories: 1600, deficit: 10, proteinFactor: 1.8,
   fatPercent: 30, objective: 'Lose fat · preserve muscle',
   insulinResistance: false,
+  goalMode: 'weight', bodyFatPercent: null, startBodyFatPercent: null, goalBodyFatPercent: null,
+  muscleMass: null, startMuscleMass: null, goalMuscleMass: null,
 };
 
 function food(id, name, category, grams, unit, kcal, protein, carbs, fat, note, source = '', verified = false) {
@@ -194,26 +196,94 @@ function numberIn(value, min, max, label) {
   return n;
 }
 
+function optionalNumber(value, min, max, label) {
+  if (value === '' || value === null || value === undefined) return null;
+  if (!['number', 'string'].includes(typeof value)) throw new Error(`${label} must be a number or blank.`);
+  return numberIn(value, min, max, label);
+}
+
+function checkMuscleMass(weight, bodyFatPercent, muscleMass, label) {
+  const leanMass = bodyFatPercent === null ? weight : weight * (1 - bodyFatPercent / 100);
+  if (muscleMass !== null && muscleMass > leanMass + 1e-8) {
+    throw new Error(`${label} skeletal muscle cannot exceed ${bodyFatPercent === null ? 'body weight' : 'fat-free mass'}. Use a skeletal-muscle measurement, not total lean mass.`);
+  }
+}
+
+function compositionForProfile(p) {
+  const currentLeanMass = p.bodyFatPercent === null ? null : p.weight * (1 - p.bodyFatPercent / 100);
+  const startLeanMass = p.startBodyFatPercent === null ? null : p.startWeight * (1 - p.startBodyFatPercent / 100);
+  // Anchor non-muscle lean tissue to the starting measurements. Updating a
+  // current reading must not move the user's goal or confuse lean mass with muscle.
+  const otherLeanMass = startLeanMass === null || p.startMuscleMass === null ? null : startLeanMass - p.startMuscleMass;
+  const goalLeanMass = otherLeanMass === null || p.goalMuscleMass === null ? null : otherLeanMass + p.goalMuscleMass;
+  const compositionGoalWeight = goalLeanMass === null || p.goalBodyFatPercent === null ? null : goalLeanMass / (1 - p.goalBodyFatPercent / 100);
+  const progress = (start, current, goal) => {
+    if ([start, current, goal].some(value => value === null)) return null;
+    if (Math.abs(start - goal) < 1e-8) return Math.abs(current - goal) < 1e-8 ? 100 : 0;
+    return Math.max(0, Math.min(100, (current - start) / (goal - start) * 100));
+  };
+  return {
+    currentLeanMass, startLeanMass, otherLeanMass, goalLeanMass, compositionGoalWeight,
+    currentFatMass: currentLeanMass === null ? null : p.weight - currentLeanMass,
+    goalFatMass: compositionGoalWeight === null ? null : compositionGoalWeight - goalLeanMass,
+    goalWeight: p.goalMode === 'composition' ? compositionGoalWeight : p.goalWeight,
+    fatProgress: progress(p.startBodyFatPercent, p.bodyFatPercent, p.goalBodyFatPercent),
+    muscleProgress: progress(p.startMuscleMass, p.muscleMass, p.goalMuscleMass),
+  };
+}
+
+export function bodyComposition(profile) {
+  return compositionForProfile(validateProfile(profile));
+}
+
+export function validateMeasurement(value) {
+  if (!value || !isDateKey(value.date)) throw new Error('Weight date is invalid.');
+  const weight = numberIn(value.weight, 30, 250, 'Recorded weight');
+  const bodyFatPercent = optionalNumber(value.bodyFatPercent, 3, 65, 'Recorded body fat percentage');
+  const muscleMass = optionalNumber(value.muscleMass, 1, 150, 'Recorded skeletal muscle mass');
+  checkMuscleMass(weight, bodyFatPercent, muscleMass, 'Recorded');
+  return { date: value.date, weight,
+    ...(bodyFatPercent === null ? {} : { bodyFatPercent }),
+    ...(muscleMass === null ? {} : { muscleMass }) };
+}
+
 export function validateProfile(value) {
   if (!value || typeof value !== 'object') throw new Error('Profile is missing.');
   const age = ageAt(value.birthDate);
   if (age < 18 || age > 100) throw new Error('This tracker’s energy formula is for adults aged 18–100.');
   if (!['female', 'male'].includes(value.sex)) throw new Error('Choose a formula sex setting.');
   if (!['manual', 'calculated'].includes(value.calorieMode)) throw new Error('Choose a calorie mode.');
+  const goalMode = value.goalMode ?? 'weight';
+  if (!['weight', 'composition'].includes(goalMode)) throw new Error('Choose a weight or body-composition goal.');
   if (value.insulinResistance !== undefined && typeof value.insulinResistance !== 'boolean') throw new Error('Insulin resistance setting is invalid.');
   const p = {
     ...DEFAULT_PROFILE,
     name: String(value.name || 'You').slice(0, 40), birthDate: value.birthDate, sex: value.sex,
     height: numberIn(value.height, 100, 230, 'Height'), weight: numberIn(value.weight, 30, 250, 'Current weight'),
     startWeight: numberIn(value.startWeight ?? value.weight, 30, 250, 'Starting weight'),
-    goalWeight: numberIn(value.goalWeight, 30, 250, 'Goal weight'),
+    goalWeight: goalMode === 'composition' ? null : numberIn(value.goalWeight, 30, 250, 'Goal weight'),
     activity: numberIn(value.activity, 1.2, 1.9, 'Activity multiplier'),
     calorieMode: value.calorieMode, calories: numberIn(value.calories, 1200, 4000, 'Daily budget'),
     deficit: numberIn(value.deficit, 0, 20, 'Deficit'),
     proteinFactor: numberIn(value.proteinFactor, 1.4, 2.2, 'Protein factor'),
     fatPercent: numberIn(value.fatPercent, 20, 35, 'Fat percentage'),
     insulinResistance: value.insulinResistance === true,
+    goalMode,
+    bodyFatPercent: optionalNumber(value.bodyFatPercent, 3, 65, 'Current body fat percentage'),
+    startBodyFatPercent: optionalNumber(value.startBodyFatPercent, 3, 65, 'Starting body fat percentage'),
+    goalBodyFatPercent: optionalNumber(value.goalBodyFatPercent, 3, 65, 'Goal body fat percentage'),
+    muscleMass: optionalNumber(value.muscleMass, 1, 150, 'Current skeletal muscle mass'),
+    startMuscleMass: optionalNumber(value.startMuscleMass, 1, 150, 'Starting skeletal muscle mass'),
+    goalMuscleMass: optionalNumber(value.goalMuscleMass, 1, 150, 'Goal skeletal muscle mass'),
   };
+  checkMuscleMass(p.weight, p.bodyFatPercent, p.muscleMass, 'Current');
+  checkMuscleMass(p.startWeight, p.startBodyFatPercent, p.startMuscleMass, 'Starting');
+  if (goalMode === 'composition') {
+    for (const [key, label] of [['bodyFatPercent','Current body fat percentage'], ['startBodyFatPercent','Starting body fat percentage'], ['goalBodyFatPercent','Goal body fat percentage'], ['muscleMass','Current skeletal muscle mass'], ['startMuscleMass','Starting skeletal muscle mass'], ['goalMuscleMass','Goal skeletal muscle mass']]) {
+      if (p[key] === null) throw new Error(`${label} is required for a body-composition goal.`);
+    }
+    p.goalWeight = numberIn(compositionForProfile(p).compositionGoalWeight, 30, 250, 'Estimated goal weight');
+  }
   const bmiGoal = p.goalWeight / (p.height / 100) ** 2;
   if (bmiGoal < 18.5) throw new Error('This adult tracker does not set weight-loss goals below BMI 18.5.');
   return p;
@@ -233,19 +303,25 @@ export function nutrientGoals(calories) {
   };
 }
 
-function energyForProfile(profile, date, weightOverride = null) {
+function energyForProfile(profile, date, weightOverride = null, bodyFatOverride = null) {
   const age = ageAt(profile.birthDate, date);
   const weight = weightOverride === null ? profile.weight : numberIn(weightOverride, 30, 250, 'Reference body weight');
   const common = 6.25 * profile.height - 5 * age + (profile.sex === 'male' ? 5 : -161);
-  const rmr = 10 * weight + common;
-  const goalRmr = 10 * profile.goalWeight + common;
+  // Historical weights without a contemporaneous fat measurement retain the
+  // weight-based formula instead of borrowing today's body-fat percentage.
+  const bodyFat = weightOverride === null ? profile.bodyFatPercent
+    : optionalNumber(bodyFatOverride, 3, 65, 'Reference body fat percentage');
+  const rmr = profile.goalMode === 'composition' && bodyFat !== null
+    ? 370 + 21.6 * weight * (1 - bodyFat / 100) : 10 * weight + common;
+  const goalRmr = profile.goalMode === 'composition'
+    ? 370 + 21.6 * compositionForProfile(profile).goalLeanMass : 10 * profile.goalWeight + common;
   return { rmr, tdee:rmr * profile.activity, goalRmr, goalTdee:goalRmr * profile.activity, age };
 }
 
 // Energy references do not require macro targets to fit a selected food budget.
 // A dated weight changes actual expenditure; the goal-weight reference is fixed.
-export function energyNeeds(profile, date = todayKey(), weightOverride = null) {
-  return energyForProfile(validateProfile(profile), date, weightOverride);
+export function energyNeeds(profile, date = todayKey(), weightOverride = null, bodyFatOverride = null) {
+  return energyForProfile(validateProfile(profile), date, weightOverride, bodyFatOverride);
 }
 
 export function calculateGoals(profile, date = todayKey(), overrideCalories = null) {
@@ -267,6 +343,7 @@ export function calculateGoals(profile, date = todayKey(), overrideCalories = nu
   if (carbCalories < -1e-8) throw new Error('This calorie budget cannot accommodate your protein and fat targets.');
   const carbs = Math.max(0, carbCalories / 4);
   return { kcal, protein, carbs, fat, ...nutrientGoals(kcal), ...energy, calculatedCalories,
+    ...compositionForProfile(p), energyMethod: p.goalMode === 'composition' ? 'katch' : 'mifflin',
     rawCalculatedCalories:rawCalculated, calculatedMacroFloorCalories,
     calculatedMacroFloorApplied:calculatedMacroFloorCalories > goalBasedCalories,
     calculatedCeilingApplied:uncappedCalculatedCalories > 4000,
@@ -615,10 +692,7 @@ export function validateState(value, today = todayKey()) {
     }
     days[date] = { entries, ...(goals ? { goals } : {}), note: String(day.note || '').slice(0, 800) };
   }
-  const weights = value.weights.map(w => {
-    if (!isDateKey(w.date)) throw new Error('Weight date is invalid.');
-    return { date: w.date, weight: numberIn(w.weight, 30, 250, 'Recorded weight') };
-  }).sort((a, b) => a.date.localeCompare(b.date));
+  const weights = value.weights.map(validateMeasurement).sort((a, b) => a.date.localeCompare(b.date));
   return { version: 1, profileReady: value.profileReady !== false, intakeClosedThrough: closedIntakeThrough({...value,days}, today), profile, foods, days, weights,
     workouts:validateWorkouts(value.workouts), preferences:validatePreferences(value.preferences), createdAt: String(value.createdAt || '') };
 }

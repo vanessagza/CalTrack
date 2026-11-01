@@ -1,4 +1,4 @@
-import {isDateKey,scheduledExercise,calculateGoals,totals,validateExerciseEnergy} from './core.js?v=16';
+import {isDateKey,scheduledExercise,calculateGoals,totals,validateExerciseEnergy} from './core.js?v=18';
 
 // Planning assumptions informed by activity categories in the Adult Compendium.
 // METs describe average intensity, not measured energy for an individual lift.
@@ -63,7 +63,12 @@ export function workoutDayEnergy(state,date) {
 }
 export function dailyCalorieBalance(state,date,baseGoals=null) {
   const goals=baseGoals||state.days[date]?.goals||calculateGoals(state.profile,date);
-  const consumed=totals(state.days[date]?.entries||[]),exercise=workoutDayEnergy(state,date);
+  const consumed=totals(state.days[date]?.entries||[]),estimate=workoutDayEnergy(state,date);
+  // Higher whole-day activity factors already include habitual exercise.
+  // Keep the completed estimate available without adding that energy twice.
+  const activityIncluded=Number(state.profile.activity)>1.2;
+  const exercise={...estimate,estimatedKcal:estimate.creditedKcal,activityIncluded,
+    creditedKcal:activityIncluded?0:estimate.creditedKcal};
   const adjustedKcal=goals.kcal+exercise.creditedKcal;
   return {baseGoals:goals,baseKcal:goals.kcal,exercise,consumed,adjustedKcal,
     remainingKcal:adjustedKcal-consumed.kcal};

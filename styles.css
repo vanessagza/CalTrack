@@ -560,3 +560,36 @@ html[data-density="compact"] .library-card-image{height:160px}
 .calc-current-reference{padding-bottom:16px;margin-bottom:15px;border-bottom:1px solid var(--line)}
 .calc-current-reference small{margin-top:7px}
 .calc-panel .equation p strong{display:inline}
+
+/* Guidance follows the activity selector and stays readable on small screens. */
+.activity-guide{margin-top:22px;padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--surface-soft,var(--bg));min-width:0}
+.activity-guide h3{font-size:var(--body-size,13px);font-weight:600;color:var(--ink);line-height:1.6;margin:0 0 10px}
+.activity-guide p{font-size:var(--subtext-size,11px);line-height:1.85;color:var(--muted);margin:0 0 12px}
+.activity-guide strong{color:var(--ink);font-weight:550}
+.activity-example{border-left:3px solid var(--green);padding:10px 12px;margin:14px 0;background:var(--paper);border-radius:0 8px 8px 0;font-size:var(--subtext-size,11px);line-height:1.8}
+.activity-example>p{margin:7px 0 0}
+.activity-guide .activity-budget-note{font-size:calc(var(--subtext-size,11px) * .95)}
+.activity-guide summary{cursor:pointer;color:var(--ink);font-size:var(--subtext-size,11px);line-height:1.8;padding:4px 0}
+.activity-guide summary:focus-visible{outline:2px solid var(--green);outline-offset:4px;border-radius:3px}
+.activity-level-table{width:100%;border-collapse:collapse;margin-top:12px;text-align:left;font-size:var(--subtext-size,11px);line-height:1.8}
+.activity-level-table th,.activity-level-table td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.activity-level-table th{color:var(--ink);font-weight:550}
+.activity-level-table tbody th{width:65px;font-variant-numeric:tabular-nums}
+.activity-level-table td span{display:block;color:var(--muted);margin-top:3px}
+.activity-level-table .activity-selected{background:var(--paper)}
+@media(max-width:550px){.activity-guide{padding:14px}.activity-level-table th,.activity-level-table td{padding:9px 5px}.activity-level-table tbody th{width:52px}}
+
+/* Separate composition goals remain readable at unchanged scale weight. */
+.composition-progress{margin-bottom:22px;min-width:0}
+.composition-metric{margin-top:20px}
+.composition-metric>div:first-child{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:9px;font-size:var(--body-size,13px);color:var(--ink)}
+.composition-metric>div:first-child span{font-variant-numeric:tabular-nums}
+.composition-metric small,.composition-progress p,[data-composition-inputs]>p{font-size:var(--subtext-size,11px);color:var(--muted);line-height:1.8}
+.composition-metric small{display:block;margin-top:7px}
+.composition-progress>p{margin:18px 0 10px}
+[data-composition-inputs][hidden],[data-weight-goal][hidden]{display:none}
+.weight-table{font-size:var(--subtext-size,11px)}
+.weight-table th{text-align:left;color:var(--muted);font-weight:500;padding:10px 5px}
+.weight-table td{padding-inline:5px}
+.composition-progress.card{padding:24px}
+@media(max-width:550px){.composition-progress.card{padding:20px}}

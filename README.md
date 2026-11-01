@@ -46,8 +46,10 @@ also shows both values, which update when you
 change and save goal weight. RMR estimates resting energy; it is not a daily
 intake limit. The chart references do not decide deficit or surplus.
 
-The current-weight maintenance comparison uses Mifflin–St Jeor with the dated weight record, formula sex,
-height, age and usual activity. It is independent of the selected calorie
+The current-weight maintenance comparison uses the dated weight record and usual
+activity. In composition mode, a record with body fat uses Katch–McArdle;
+otherwise it uses Mifflin–St Jeor with formula sex, height and age. Missing
+historical body fat never borrows a newer measurement. It is independent of the selected calorie
 budget and deficit. The sedentary activity setting adds only completed net
 exercise estimates; higher activity settings already include exercise and do
 not add it again. Intake within 5% of the matched maintenance estimate is shown
@@ -55,9 +57,44 @@ as estimated maintenance. A partial week projects its counted-day intake and
 maintenance averages over seven days and is clearly marked as a projection.
 It is not a prediction of exact weight change.
 
-## Goal-weight energy formulas
+## Body-composition goals and energy formulas
 
-In **Profile & goals**, the main RMR and maintenance TDEE cards use goal weight:
+In **Profile & goals**, choose a **weight goal** or a **body-composition goal**.
+Existing journals keep their weight goal until you change the goal mode.
+For body composition, enter current, starting and goal **body fat percentage**
+and **skeletal muscle mass in kg**. The starting values establish a fixed
+baseline; you can initialize them from your current measurements when starting
+a new goal. Use the same measurement method under similar conditions when
+logging new measurements. A scale's fat and muscle estimates fluctuate with
+hydration, so judge trends rather than a single reading.
+
+Fat percentage and muscle mass have separate progress indicators. Losing fat
+and gaining muscle can therefore show progress while total body weight stays
+the same. Muscle mass means skeletal muscle reported by your measurement
+method; **fat-free mass also includes organs, bone, water and other tissue**.
+Do not enter fat-free mass as muscle mass.
+
+Composition goals derive a reference weight instead of requiring a chosen
+goal weight. The estimate holds other fat-free tissue at its starting amount:
+
+`Other lean tissue = starting weight × (1 − starting body fat % / 100) − starting muscle kg`
+
+`Goal fat-free mass = other lean tissue + goal muscle kg`
+
+`Derived goal weight = goal fat-free mass ÷ (1 − goal body fat % / 100)`
+
+This is a planning assumption, not a prediction of exactly how the body will
+change. The calculation panel shows the derived reference and the assumptions.
+Composition mode estimates resting energy using Katch–McArdle:
+
+`RMR = 370 + 21.6 × fat-free mass (kg)`
+
+Current RMR uses current weight and body fat; goal RMR uses goal fat-free mass.
+Skeletal muscle is not substituted for total fat-free mass in this equation.
+Changing goal body fat alone changes the derived weight and fat target; changing
+goal muscle changes goal fat-free mass and therefore the goal energy estimate.
+In weight-goal mode, the main RMR and maintenance TDEE cards keep the
+Mifflin–St Jeor equation:
 
 `Goal RMR = 10 × goal weight (kg) + 6.25 × height (cm) − 5 × age + sex constant`
 
@@ -72,10 +109,31 @@ and fat targets, and is capped at the tracker’s 4,000-kcal maximum. The calcul
 panel identifies applied guardrails; the goal-weight TDEE estimate is uncapped.
 Manual mode keeps the selected calorie budget.
 
-The profile also shows current-weight RMR and TDEE separately. Weekly energy
+The profile also shows current RMR and TDEE separately. Weekly energy
 balance uses dated current-weight TDEE, which estimates expenditure at the
-weight recorded for those days. Changing goal weight updates goal references
+measurements recorded for those days. Changing goals updates goal references
 and formula-mode budgets, while recorded days keep their saved calorie budgets.
+
+### Choosing typical activity
+
+The activity selector includes intermediate choices from **1.20** through
+**1.90**, with a guide explaining the whole-day movement each represents.
+It preserves a valid existing custom factor restored from a journal.
+Choose using your usual mix of sitting, walking, physical work, workout duration
+and intensity; workout frequency alone is not enough.
+
+If you sit most of the day and work out **30 minutes, four times a week**,
+**1.25–1.30** is a possible starting estimate for gentle to moderate sessions.
+Consider **1.375** for harder workouts or more everyday walking. Review intake
+and measurement trends over **2–4 weeks**, then adjust gradually.
+
+Choose **1.20** if you want a seated baseline with completed net workout
+estimates added separately to the daily calorie budget and weekly maintenance
+comparison. Factors **above 1.20** already represent the usual whole week,
+including workouts, so logged exercise does not add another calorie credit.
+Exercise burn estimates remain visible at every level. Switching activity
+changes the current comparison and completion credit; saved base food budgets
+for recorded days remain intact.
 
 ## Daily nutrients
 
@@ -302,10 +360,12 @@ edited fields on the latest account revision, preserving unrelated settings.
 
 ### Completed workouts and calorie remaining
 
-Checking an exercise adds its **estimated extra energy** to that date's calorie
-budget. Daily intake shows the base budget, completed exercise credit and adjusted
-budget separately. Remaining calories are **base budget + completed exercise
-credit − logged food**. Saved macro targets retain their base values. Workouts
+At activity **1.20**, checking an exercise adds its **estimated extra energy**
+to that date's calorie budget. With a higher activity factor, usual workouts
+are already included, so completed exercise adds no second credit. Daily intake
+shows the base budget, completed exercise credit and adjusted budget separately.
+Remaining calories are **base budget + completed exercise credit − logged food**.
+Saved macro targets retain their base values. Workouts
 show estimates for each exercise and the selected day's calorie balance; links
 open the matching food log or workout date.
 
@@ -316,7 +376,7 @@ example, 100 kcal for 2 sets of 10 reps at 70 kg becomes 200 kcal for 4 sets of
 10 reps at the same weight. The saved calibration scales as **reference kcal ×
 current weight ÷ reference weight × active minutes ÷ reference active minutes**.
 Zero calories is allowed. The live preview shows the result; checking the
-scheduled exercise adds it to that day's budget. Library calorie edits update
+scheduled exercise adds it to that day's budget only with activity factor 1.20; higher factors already include usual workouts. Library calorie edits update
 existing workouts immediately, and your calorie settings travel with backups
 and private sync. Choose **Automatic estimate** to return to the formula below.
 
@@ -335,8 +395,9 @@ does not directly change the intensity assumption. Real pace and effort vary.
 
 The last weight recorded on or before the exercise date supplies body weight.
 Days before the first measurement use the profile's starting weight; with no
-weight records, the current profile weight is used. An activity factor already
-including these workouts can count some energy twice when credit is added.
+weight records, the current profile weight is used. Factors above 1.20 include
+usual workouts, so the daily budget and weekly comparison do not credit them
+again. Their completed exercise burn estimates are still shown.
 
 Only completed entries contribute. Unchecking, deleting or clearing removes
 credit. Editing completed sets/reps/duration changes the credit immediately.

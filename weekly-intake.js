@@ -1,10 +1,10 @@
 import {
   energyNeeds, closedIntakeThrough, isDateKey, todayKey,
   totals as foodTotals, validateProfile, weekDates,
-} from './core.js?v=16';
-import { exerciseWeightForDate, workoutDayEnergy } from './exercise-energy.js?v=16';
+} from './core.js?v=18';
+import { exerciseWeightForDate, workoutDayEnergy } from './exercise-energy.js?v=18';
 
-export { closeIntakeDays, closedIntakeThrough as inferredIntakeClosedThrough } from './core.js?v=16';
+export { closeIntakeDays, closedIntakeThrough as inferredIntakeClosedThrough } from './core.js?v=18';
 
 // A practical comparison band, not a claim that predicted expenditure is exact.
 const MAINTENANCE_TOLERANCE = 0.05;
@@ -16,7 +16,13 @@ function maintenanceForDate(state, profile, date) {
   }
   // Use maintenance expenditure directly. The selected calorie budget, deficit,
   // and protein target do not determine whether intake is below maintenance.
-  const energy = energyNeeds(profile, date, weightKg);
+  let measurement = null;
+  for (const record of state.weights || []) {
+    if (record.date <= date && (!measurement || record.date > measurement.date)) measurement = record;
+  }
+  // A fat reading belongs to its weight measurement. Never borrow a newer
+  // reading or combine a historical weight with today's composition.
+  const energy = energyNeeds(profile, date, weightKg, measurement?.bodyFatPercent ?? null);
   const baseMaintenanceKcal = energy.tdee;
   // Higher activity multipliers already include habitual activity. Only the
   // sedentary baseline receives additional completed, net exercise estimates.

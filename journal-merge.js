@@ -1,6 +1,6 @@
-import { validateState, validateWorkouts,todayKey } from './core.js?v=16';
-import { validatePreferences } from './preferences.js?v=16';
-import { validateCloudJournal } from './sync-journal.js?v=16';
+import { validateState, validateWorkouts,todayKey } from './core.js?v=18';
+import { validatePreferences } from './preferences.js?v=18';
+import { validateCloudJournal } from './sync-journal.js?v=18';
 
 const canonical = value => JSON.stringify(value, function (key, item) {
   return item && typeof item === 'object' && !Array.isArray(item)
