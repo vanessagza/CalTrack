@@ -19,6 +19,11 @@ Supabase is configured. Signed-out use continues to save in this browser.
 Open **Settings** to customize your own light and dark palettes, text sizes,
 spacing, animations and profile photo.
 
+A tiny calculator sits in the spare space beside the **Daily intake** heading.
+Type an expression and press Enter or =, or open its calculator icon for a keypad.
+It supports brackets and percentages (for example, `200 × 10% = 20`), and never
+changes your food log or settings. On narrow screens, only the icon is shown.
+
 ## Weekly calorie picture
 
 At the bottom of **Daily intake**, the Monday–Sunday calculator shows each
