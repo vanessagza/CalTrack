@@ -21,7 +21,7 @@ import {weeklyIntakeDashboard} from './weekly-intake-view.js?v=18';
 
 import { activityOptions, activityGuide } from './activity-guide.js?v=18';
 import { renderGoalForecast, mountGoalForecast } from './goal-forecast-view.js?v=19';
-import { quickCalculatorHTML, mountQuickCalculator } from './quick-calculator-view.js?v=20';
+import { quickCalculatorHTML, mountQuickCalculator } from './quick-calculator-view.js?v=21';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -105,7 +105,6 @@ if (needsSetup && !checkingAccount && !returningFromSignIn && location.hash !== 
 let selectedDate = todayKey();
 let intakeWeekDate = selectedDate;
 let workoutDate = todayKey();
-let disposeQuickCalculator;
 let route = location.hash.slice(1) || 'today';
 let foodQuery = '', foodFilter = 'All';
 let pickerFood = null, editingEntryId = null, modalUnit = 'portion', foodBasis = '100',foodPortionGrams=100;
@@ -254,10 +253,6 @@ function renderToday() {
     <aside><section class="card next-card"><span class="small-label">TO FINISH YOUR DAY</span><h2>${nextHeading}</h2><p>${nextCopy}</p><div id="suggestion-list" class="suggestion-list">${suggestionsList.map(x=>`<div class="suggestion">${tile(x.food)}<div class="suggestion-copy"><strong>${esc(x.food.name)}</strong><small>${num(x.food.portionGrams)} g · ${num(x.nutrition.protein,1)} g protein · ${num(x.nutrition.kcal)} kcal</small></div><button class="icon-btn" data-action="add-suggestion" data-id="${esc(x.food.id)}" aria-label="Add ${esc(x.food.name)}">${icon('plus')}</button></div>`).join('')}</div><div class="next-note">${r.fat < -1 ? 'You’re above the fat target today. A lean option can fit your remaining calories; there’s no need to make up for it tomorrow.' : 'Portions use your saved food values. Pick what suits your appetite and tolerance.'}</div></section>
     ${state.profile.goalMode==='composition'?compositionProgress(state.profile):`<section class="card goal-glance"><span class="small-label">YOUR WEIGHT GOAL</span><div class="weight-glance"><div><strong>${num(state.profile.weight,1)} <span style="font-size:11px">kg</span></strong><small>Current weight</small></div>${icon('right')}<div><strong>${num(state.profile.goalWeight,1)} <span style="font-size:11px">kg</span></strong><small>Goal weight</small></div></div><div class="goal-caption"><span>${num(state.profile.height,1)} cm · ${ageAt(state.profile.birthDate)} years</span><a href="#goals">View my goals & timeline ↗</a></div></section>`}</aside></div>
     <p class="subtle-note">Food values and energy needs are estimates. Calories follow food labels; macro calories can differ slightly because of fiber, food-specific factors and rounding. Carbs are total carbs.</p>${weeklyIntakeDashboard({state,date:intakeWeekDate,today:todayKey(),dateText,icon,num,esc})}`;
-  const dailyHeading=$('.page-heading');
-  dailyHeading.classList.add('has-quick-calculator');
-  dailyHeading.insertAdjacentHTML('beforeend',quickCalculatorHTML());
-  disposeQuickCalculator=mountQuickCalculator(dailyHeading.querySelector('[data-quick-calculator]'));
 }
 
 function renderLog(entries) {
@@ -621,9 +616,10 @@ function editAppearanceInput(el) {
 }
 
 function render() {
-  disposeQuickCalculator?.();disposeQuickCalculator=null;
   if (!['today','foods','history','goals','workouts','exercises','settings'].includes(route)) route='today';
   applyAppearance(state.preferences);
+  const calculatorSlot=$('#sidebar-calculator');
+  if(!calculatorSlot.firstElementChild){calculatorSlot.innerHTML=quickCalculatorHTML();mountQuickCalculator(calculatorSlot.firstElementChild);}
   for (const a of document.querySelectorAll('[data-nav]')) {
     const active = a.dataset.nav===route;
     a.classList.toggle('active',active);

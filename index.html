@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./styles.css?v=18">
   <link rel="stylesheet" href="./weekly-intake.css?v=18">
   <link rel="stylesheet" href="./goal-forecast.css?v=19">
-  <link rel="stylesheet" href="./quick-calculator.css?v=20">
+  <link rel="stylesheet" href="./quick-calculator.css?v=21">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -29,9 +29,10 @@
       <a href="#history" data-nav="history"><span class="nav-icon" data-icon="history"></span> History</a>
       <a href="#goals" data-nav="goals"><span class="nav-icon" data-icon="goals"></span> Profile & goals</a>
       <a href="#settings" data-nav="settings"><span class="nav-icon" data-icon="settings"></span> Settings</a>
+      <button type="button" class="sidebar-calculator-toggle" aria-label="Open calculator" aria-expanded="false" aria-controls="sidebar-calculator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2m4 0h2m-8 4h2m4 0h2m-8 3h2m4 0h2"/></svg><span>Calculator</span></button>
     </nav>
     <div class="sidebar-bottom">
-      <div class="sidebar-note"><span class="small-label">ONE DAY AT A TIME</span><p>Know what you ate.<br>Choose what comes next.</p></div>
+      <div class="sidebar-note sidebar-calculator" id="sidebar-calculator"></div>
       <a class="person" href="#settings"><span class="avatar" id="profile-avatar" aria-hidden="true">DB</span><span><strong id="sidebar-name">You</strong><small>Personal tracker</small></span><span class="person-arrow" aria-hidden="true">↗</span></a>
     </div>
   </aside>
@@ -44,6 +45,6 @@
   <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <noscript><div class="noscript">Enable JavaScript to use your food log and calculations.</div></noscript>
-  <script type="module" src="./app.js?v=20"></script>
+  <script type="module" src="./app.js?v=21"></script>
 </body>
 </html>

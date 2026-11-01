@@ -19,10 +19,12 @@ Supabase is configured. Signed-out use continues to save in this browser.
 Open **Settings** to customize your own light and dark palettes, text sizes,
 spacing, animations and profile photo.
 
-A tiny calculator sits in the spare space beside the **Daily intake** heading.
-Type an expression and press Enter or =, or open its calculator icon for a keypad.
-It supports brackets and percentages (for example, `200 × 10% = 20`), and never
-changes your food log or settings. On narrow screens, only the icon is shown.
+A calculator with a full number and operator keypad sits in the sidebar square
+below the dashboards. Use its buttons or type an expression and press Enter.
+It supports brackets, sign changes and percentages (for example, `200 × 10% = 20`),
+and never changes your food log or settings. Your calculation stays available
+as you switch dashboards. On phones, use **Calculator** in the navigation to
+open the keypad.
 
 ## Weekly calorie picture
 
