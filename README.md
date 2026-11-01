@@ -135,6 +135,46 @@ Exercise burn estimates remain visible at every level. Switching activity
 changes the current comparison and completion credit; saved base food budgets
 for recorded days remain intact.
 
+## Goal timeline and what-if calculator
+
+**Profile & goals** and **History** include a goal timeline using your saved
+settings and measurement journal. An observed estimate needs at least three
+unique measurement dates spanning 14 days within the last 90 days, with the
+latest measurement no more than 28 days old. It fits a straight-line trend to
+each metric independently. Unchanged or away-from-goal trends do not produce
+a countdown. Future measurements are excluded.
+
+Weight goals use the weight trend. Composition goals use separate body-fat
+percentage and skeletal-muscle trends, with the combined estimate waiting for
+both targets. A steady scale does not mean a composition goal is complete.
+Dates start from your latest known measurements and assume the measured pace continues from today; unmeasured progress is not inferred. They are estimates, not deadlines.
+
+The what-if calculator lets you vary daily calories, typical activity,
+separately logged exercise at the 1.20 activity setting, and an assumed muscle
+change rate. Scenarios do not save or change your profile, goals, food,
+measurements or workouts. Reset or reload to return to the defaults.
+
+Default intake uses the average of at least seven closed, logged food days
+within the previous 28 days; otherwise it uses your saved calorie budget.
+Missing, unfinished and future dates are excluded. At activity 1.20, the default
+exercise allowance averages completed net workout estimates across those 28
+calendar days, including days with no exercise. Higher activity factors already
+include usual exercise and receive no extra credit.
+
+Formula scenarios recalculate maintenance as body weight or composition changes
+and use an approximate 7,700 kcal per kg conversion for weight/fat change.
+Composition scenarios hold current non-muscle lean tissue constant and change
+muscle at the separately stated rate, stopping muscle change at its target.
+The muscle rate comes from a usable measured trend or an assumption you enter;
+calories alone cannot predict muscle growth. An unknown muscle rate leaves the
+combined composition date unavailable when that target is unmet.
+
+The model stops at three years and identifies unresolved goals, plateaus,
+invalid assumptions and insufficient history. It does not model every metabolic
+adaptation, fluid shift or training response. Use the comparison to explore
+assumptions and update it with new measurements, rather than treating the
+fastest displayed date as a prescription.
+
 ## Daily nutrients
 
 Below the main macro bars, smaller white bars show **fiber**, **saturated
