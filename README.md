@@ -26,6 +26,13 @@ and never changes your food log or settings. Your calculation stays available
 as you switch dashboards. On phones, use **Calculator** in the navigation to
 open the keypad.
 
+Open **History** and choose **Export report PDF** for a print-ready report of
+your full journal. It includes dated food portions and nutrient totals,
+measurement history, completed and planned workouts, saved food details, and
+your current profile and goals. The button opens the browser's print dialog;
+choose **Save as PDF** to download the report. Use **Export backup** when you
+need a restorable copy of your journal data.
+
 ## Weekly calorie picture
 
 At the bottom of **Daily intake**, the Monday–Sunday calculator shows each

@@ -22,6 +22,7 @@ import {weeklyIntakeDashboard} from './weekly-intake-view.js?v=18';
 import { activityOptions, activityGuide } from './activity-guide.js?v=18';
 import { renderGoalForecast, mountGoalForecast } from './goal-forecast-view.js?v=19';
 import { quickCalculatorHTML, mountQuickCalculator } from './quick-calculator-view.js?v=21';
+import { exportJournalReportPDF } from './journal-report.js?v=22';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -298,7 +299,7 @@ function renderHistory() {
   const week = logged.filter(([date])=>date<=todayKey() && date>=shiftDate(todayKey(),-6));
   const average = week.length ? week.reduce((sum,[,d])=>sum+totals(d.entries).kcal,0)/week.length : 0;
   const proteinAverage = week.length ? week.reduce((sum,[,d])=>sum+totals(d.entries).protein,0)/week.length : 0;
-  $('#main').innerHTML = heading('See your bigger picture.','Your days, measurements and progress over time.',`<button class="btn primary" data-action="log-weight">${icon('plus')} Log measurements</button>`,'PROGRESS OVER TIME')
+  $('#main').innerHTML = heading('See your bigger picture.','Your days, measurements and progress over time.',`<button class="btn secondary" data-action="export-report">${icon('download')} Export report PDF</button><button class="btn primary" data-action="log-weight">${icon('plus')} Log measurements</button>`,'PROGRESS OVER TIME')
     + `<div class="history-stats"><section class="card stat-card"><span class="small-label">7-DAY CALORIE AVERAGE</span><strong>${week.length?num(average):'—'} <small>kcal</small></strong><p>Across ${week.length} logged ${week.length===1?'day':'days'} this week</p></section><section class="card stat-card"><span class="small-label">7-DAY PROTEIN AVERAGE</span><strong>${week.length?num(proteinAverage,1):'—'} <small>g</small></strong><p>Unlogged days are excluded</p></section><section class="card stat-card"><span class="small-label">${state.profile.goalMode==='composition'?'ESTIMATED SCALE DIFFERENCE':'WEIGHT TO GOAL'}</span><strong>${num(Math.abs(state.profile.weight-state.profile.goalWeight),1)} <small>kg</small></strong><p>Current ${num(state.profile.weight,1)} → goal ${num(state.profile.goalWeight,1)} kg</p></section></div>
     ${renderGoalForecast({state,today:todayKey()})}${compositionProgress(state.profile)}<div class="history-grid"><section class="card"><div class="card-head"><div><h2>Your logged days</h2><p>Open a day to review or change its portions.</p></div><span class="badge">${logged.length} days</span></div>${logged.length?logged.slice(0,100).map(([date,d])=>{const balance=dailyCalorieBalance(state,date),t=balance.consumed,g={...balance.baseGoals,kcal:balance.adjustedKcal};return `<div class="history-row"><div class="history-day"><strong>${dateText(date,{weekday:'short'})}</strong><small>${date.slice(0,4)} · ${d.entries.length} entries</small></div><div class="history-progress"><small>${num(t.kcal)} / ${num(g.kcal)} kcal · ${num(t.protein,1)} g protein${balance.exercise.creditedKcal?` · +${num(balance.exercise.creditedKcal,1)} exercise kcal`:""}</small><div class="progress-track"><div class="progress-fill" style="background:var(--green);width:${progress(t.kcal,g.kcal)}%"></div></div></div><button class="btn secondary small" data-action="open-day" data-date="${date}">Open ${icon('right')}</button></div>`;}).join(''):empty('Your history starts here.','Log a food and its date will appear here.') }<p class="history-summary">Macro targets are saved with each day. ${logged.length>100?'Showing your latest 100 logged days. ':''}An incomplete day still counts as a logged day.</p></section>
     <section class="card"><div class="card-head"><div><h2>Measurement journal</h2><p>Scale weight, body fat and muscle trends in one place.</p></div><button class="text-button" data-action="log-weight">Log measurements</button></div><div class="chart-wrap">${weightChart()}<table class="weight-table"><caption class="sr-only">Recorded body measurements</caption><thead><tr><th>Date</th><th>Weight</th><th>Body fat</th><th>Muscle</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${state.weights.slice(-15).reverse().map(w=>`<tr><td>${dateText(w.date,{year:'numeric'})}</td><td>${num(w.weight,1)} kg</td><td>${w.bodyFatPercent==null?'—':num(w.bodyFatPercent,1)+'%'}</td><td>${w.muscleMass==null?'—':num(w.muscleMass,1)+' kg'}</td><td><button class="icon-btn delete" data-action="delete-weight" data-date="${w.date}" aria-label="Remove weight for ${dateText(w.date)}">${icon('trash')}</button></td></tr>`).join('')}</tbody></table></div></section></div>`;
@@ -715,7 +716,7 @@ document.addEventListener('click',event=>{
   const button=event.target.closest('[data-action]');
   if(!button) return;
   const {action,id,date}=button.dataset;
-  if(!syncView.ready&&!['backup','close-dialog','sync-account','sync-upload','sync-empty','sync-refresh','sync-signout','sync-recovery','recover-appearance','stop-rest'].includes(action))return toast('Wait until this device is synced before editing.',true);
+  if(!syncView.ready&&!['backup','export-report','close-dialog','sync-account','sync-upload','sync-empty','sync-refresh','sync-signout','sync-recovery','recover-appearance','stop-rest'].includes(action))return toast('Wait until this device is synced before editing.',true);
   if(needsSetup&&['pick-food','food-portion','add-suggestion','copy-day','log-weight','pick-exercise','choose-exercise','library-add-workout','suggest-workout-week','copy-workout-week','load-starter-routine'].includes(action)){location.hash='goals';toast('Save your profile or restore your backup first.');return;}
   try {
     if(action==='composition-start'){for(const [start,current] of [['startWeight','weight'],['startBodyFatPercent','bodyFatPercent'],['startMuscleMass','muscleMass']])$('#'+start).value=$('#'+current).value;updateGoalPreview();return;}
@@ -877,6 +878,10 @@ document.addEventListener('click',event=>{
       setDate(date);$('.summary-card')?.scrollIntoView({behavior:state.preferences.reduceMotion?'instant':'smooth',block:'start'});return;
     }
     if(action==='log-weight') return showWeightDialog();
+    if(action==='export-report') {
+      const opened=exportJournalReportPDF(state);
+      return toast(opened?'Report opened. Choose Save as PDF in the print dialog.':'Allow pop-ups to export your report PDF.',!opened);
+    }
     if(action==='backup') return backup();
     if(action==='copy-day') return showCopyDialog();
     if(action==='import') return $('#backup-file').click();
