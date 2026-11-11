@@ -1,4 +1,4 @@
-import { validateState,closedIntakeThrough,todayKey } from './core.js?v=18';
+import { validateState,closedIntakeThrough,todayKey } from './core.js?v=19';
 import { validatePreferences,DEFAULT_PREFERENCES } from './preferences.js?v=18';
 
 const NUTRITION_FIELDS=['fiber','saturatedFat','sugar','addedSugar','sodium','nutrientNote','nutrientSource'];
@@ -59,6 +59,7 @@ export function validateCloudJournal(value,previous,today=todayKey()) {
   if(record(raw.days))raw.days=Object.fromEntries(Object.entries(raw.days).map(([date,day])=>{
     if(!record(day))return [date,day];
     const savedDay=previous.days?.[date],restored={...day};
+    if(!Object.hasOwn(day,'mealTimes')&&Object.hasOwn(savedDay||{},'mealTimes'))restored.mealTimes=savedDay.mealTimes;
     const savedEntries=new Map((savedDay?.entries||[]).map(entry=>[entry.id,entry]));
     if(Array.isArray(day.entries))restored.entries=day.entries.map(entry=>{
       if(!record(entry)||!record(entry.food))return entry;

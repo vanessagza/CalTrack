@@ -540,17 +540,31 @@ html[data-density="compact"] .library-card-image{height:160px}
 .summary-card .tiny-pill{justify-content:center;white-space:normal}
 @media(min-width:951px){
  .summary-card .summary-main{grid-template-columns:minmax(180px,.7fr) minmax(0,1.6fr);gap:32px;padding:30px}
- .summary-card .calorie-area{padding:15px 27px 15px 0}
- .summary-card .ring{width:155px;height:155px;flex-shrink:0}
+ .summary-card .calorie-area{padding:0 27px 15px 0;justify-content:flex-start}
+ .summary-card .ring{width:168px;height:168px;flex-shrink:0}
  .summary-card .calorie-copy{max-width:210px}
  .summary-card .remaining-number{font-size:calc(30px * var(--heading-scale,1))}
 }
 @media(max-width:950px){
- .summary-card .calorie-area{gap:12px;padding:0 0 23px}
- .summary-card .ring{width:140px;height:140px}
+ .summary-card .calorie-area{gap:12px;padding:0 0 23px;justify-content:flex-start}
+ .summary-card .ring{width:158px;height:158px}
  .summary-card .calorie-copy p{display:none}
  .summary-card .calorie-copy .tiny-pill{margin-top:12px}
 }
+
+.meal-time-log{padding:13px 30px 17px;border-top:1px solid var(--line);background:var(--surface-soft,var(--bg))}
+.summary-card #summary-live{display:flex;flex-direction:column}
+.summary-card #summary-live>.summary-main{order:1}
+.summary-card #summary-live>.activity-calorie-summary{order:2}
+.summary-card #summary-live>.meal-time-log{order:3}
+.meal-time-heading{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.meal-time-heading h2{margin:0;font-size:11px;font-weight:600;color:var(--ink)}
+.meal-time-heading span{font-size:9px;color:var(--muted)}
+.meal-time-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.meal-time-field{display:flex;align-items:center;justify-content:space-between;gap:9px;min-width:0;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--muted);font-size:10px}
+.meal-time-field span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meal-time-field input{width:112px;max-width:55%;min-width:0;padding:4px 5px;border:1px solid var(--line);border-radius:5px;background:var(--paper);color:var(--ink);font-size:11px;font-variant-numeric:tabular-nums}
+@media(max-width:700px){.meal-time-log{padding:13px 17px 16px}.meal-time-fields{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.meal-time-field{padding:7px 8px}.meal-time-field input{width:105px}}
 
 .goal-budget-reference{padding:16px;border:1px solid var(--line);border-radius:12px;margin:16px 0;background:var(--surface-soft)}
 .goal-budget-reference>div>span,.goal-budget-reference small,.calc-current-reference>span,.calc-current-reference small{display:block;font-size:var(--subtext-size,11px);color:var(--muted);line-height:1.7}

@@ -10,6 +10,12 @@ export const EXTRA_NUTRIENTS = ['fiber', 'saturatedFat', 'sugar', 'addedSugar', 
 export const ALL_NUTRIENTS = [...NUTRIENTS, ...EXTRA_NUTRIENTS];
 export const CATEGORIES = ['Protein', 'Bread & grains', 'Dairy', 'Snacks', 'Fruit', 'Extras'];
 export const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks', 'Other'];
+export const MEAL_TIME_FIELDS = [
+  { key: 'breakfast', label: 'Breakfast' },
+  { key: 'proteinShake', label: 'Protein shake' },
+  { key: 'lunch', label: 'Lunch' },
+  { key: 'dinner', label: 'Dinner' },
+];
 export const WORKOUT_GOALS = [
   ['preserve', 'Muscle preservation'], ['build', 'Muscle building'],
   ['strength', 'Increase strength'], ['fitness', 'General fitness'],
@@ -659,6 +665,19 @@ export function createInitialState() {
     days: {}, weights: [], workouts:validateWorkouts(), preferences:validatePreferences(), createdAt: new Date().toISOString() };
 }
 
+export function validateMealTimes(value) {
+  if (value == null) return {};
+  if (typeof value !== 'object' || Array.isArray(value)) throw new Error('Meal times are invalid.');
+  const times = {};
+  for (const { key } of MEAL_TIME_FIELDS) {
+    const time = value[key];
+    if (time == null || time === '') continue;
+    if (typeof time !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error('Enter each meal time as a valid time.');
+    times[key] = time;
+  }
+  return times;
+}
+
 export function validateState(value, today = todayKey()) {
   if (!value || value.version !== 1 || !Array.isArray(value.foods) || !Array.isArray(value.weights)) throw new Error('Choose a Daily Balance backup file.');
   const profile = validateProfile(value.profile);
@@ -690,7 +709,8 @@ export function validateState(value, today = todayKey()) {
       if (Math.abs(goals.protein * 4 + goals.carbs * 4 + goals.fat * 9 - goals.kcal) > 2) throw new Error('Saved macro targets do not match the calorie target.');
       Object.assign(goals, nutrientGoals(goals.kcal));
     }
-    days[date] = { entries, ...(goals ? { goals } : {}), note: String(day.note || '').slice(0, 800) };
+    const mealTimes = validateMealTimes(day.mealTimes);
+    days[date] = { entries, ...(goals ? { goals } : {}), ...(Object.hasOwn(day, 'mealTimes') ? { mealTimes } : {}), note: String(day.note || '').slice(0, 800) };
   }
   const weights = value.weights.map(validateMeasurement).sort((a, b) => a.date.localeCompare(b.date));
   return { version: 1, profileReady: value.profileReady !== false, intakeClosedThrough: closedIntakeThrough({...value,days}, today), profile, foods, days, weights,

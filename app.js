@@ -1,5 +1,5 @@
 import {
-  STORAGE_KEY, DEFAULT_PROFILE, CATEGORIES, MEALS, NUTRIENTS, EXTRA_NUTRIENTS, nutrientGoals,
+  STORAGE_KEY, DEFAULT_PROFILE, CATEGORIES, MEALS, MEAL_TIME_FIELDS, NUTRIENTS, EXTRA_NUTRIENTS, nutrientGoals,
   todayKey, ageAt, shiftDate, isDateKey, validateProfile, validateFood, validateMeasurement, bodyComposition,
   calculateGoals, portionNutrition, allowedUnits, unitLabel, newEntry,
   totals, remaining, progress, createInitialState, validateState, suggestions, closeIntakeDays, closedIntakeThrough,
@@ -8,10 +8,10 @@ import {
   suggestWorkoutWeek, copyWorkoutWeek,
   EXERCISE_GROUPS,exerciseCatalog,scheduledExercise,validateExercise,validateSessionNote,
   WARMUP_TEXT,matchesStarterRoutine,starterWeek,workoutConfigKey,clearWorkoutSchedule,
-} from './core.js?v=18';
+} from './core.js?v=19';
 import { createJournalSync } from './cloud-sync.js?v=18';
-import { sameJournal } from './journal-merge.js?v=18';
-import {validateCloudJournal} from './sync-journal.js?v=18';
+import { sameJournal } from './journal-merge.js?v=19';
+import {validateCloudJournal} from './sync-journal.js?v=19';
 import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=18';
 import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=18';
 import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=18';
@@ -22,7 +22,7 @@ import {weeklyIntakeDashboard} from './weekly-intake-view.js?v=18';
 import { activityOptions, activityGuide } from './activity-guide.js?v=18';
 import { renderGoalForecast, mountGoalForecast } from './goal-forecast-view.js?v=19';
 import { quickCalculatorHTML, mountQuickCalculator } from './quick-calculator-view.js?v=21';
-import { exportJournalReportPDF } from './journal-report.js?v=22';
+import { exportJournalReportPDF } from './journal-report.js?v=23';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -218,7 +218,7 @@ function dateControl() {
 }
 function empty(message, description, action = '') { return `<div class="empty-state">${icon('foods')}<h3>${esc(message)}</h3><p>${esc(description)}</p>${action}</div>`; }
 
-function summaryContent(baseGoals, t, exerciseKcal=0, exerciseEstimate=exerciseKcal) {
+function summaryContent(baseGoals, t, exerciseKcal=0, exerciseEstimate=exerciseKcal, mealTimes={}) {
   const g={...baseGoals,kcal:baseGoals.kcal+exerciseKcal};
   const rest = remaining(t, g);
   const over = rest.kcal < -0.5;
@@ -230,7 +230,7 @@ function summaryContent(baseGoals, t, exerciseKcal=0, exerciseEstimate=exerciseK
     <div class="macro-list">${['protein','carbs','fat'].map(key => {
       const title = {protein:'Protein',carbs:'Carbohydrates',fat:'Fats'}[key];
       return `<div class="macro"><div class="macro-top"><span class="macro-title"><span class="dot ${key}"></span>${title}</span><span class="macro-values">${num(t[key],1)} g <span>/ ${num(g[key],1)} g</span></span></div><div class="progress-track" role="progressbar" aria-label="${title}" aria-valuemin="0" aria-valuemax="${g[key]}" aria-valuenow="${Math.min(t[key],g[key])}" aria-valuetext="${num(t[key],1)} grams consumed of ${num(g[key],1)} grams"><div class="progress-fill ${key}" style="width:${progress(t[key],g[key])}%"></div></div><div class="macro-bottom"><span>${key==='protein' ? 'For your muscle goal' : key==='carbs' ? 'Your energy balance' : 'A flexible daily target'}</span><span class="${rest[key] < -.05 ? 'exceeded' : ''}">${num(Math.abs(rest[key]),1)} g ${rest[key] < -.05 ? 'above target' : 'remaining'}</span></div></div>`;
-    }).join('')}${secondaryNutrients(baseGoals,t)}</div></div><div class="activity-calorie-summary" aria-label="Daily exercise calorie adjustment"><div><span>Base budget</span><strong data-base-calories>${num(baseGoals.kcal)} kcal</strong></div><div><span>${state.profile.activity===1.2?'Completed exercise · estimate':'Extra exercise credit · included in activity'}</span><strong data-calorie-credit>+${num(exerciseKcal,1)} kcal</strong></div><div><span>Adjusted calorie budget</span><strong data-adjusted-calories>${num(g.kcal,1)} kcal</strong></div><p>${state.profile.activity===1.2?'Only checked workouts for this date add estimated calories.':'Your activity factor includes usual workouts, so completed exercise is not added again.'} ${state.profile.activity>1.2?`Completed workout burn estimate: <strong data-completed-exercise-estimate>${num(exerciseEstimate,1)} kcal</strong>. `:''}Macro and nutrient targets keep their base values. <button class="text-button" data-action="view-calorie-workouts">View this day’s workouts</button></p></div>`;
+    }).join('')}${secondaryNutrients(baseGoals,t)}</div></div><section class="meal-time-log" aria-labelledby="meal-time-heading"><div class="meal-time-heading"><h2 id="meal-time-heading">Meal times</h2><span>Saved with this date</span></div><div class="meal-time-fields">${MEAL_TIME_FIELDS.map(({key,label})=>`<label class="meal-time-field" for="meal-time-${key}"><span>${label}</span><input id="meal-time-${key}" type="time" step="60" data-meal-time="${key}" value="${esc(mealTimes?.[key]||'')}" aria-label="${label} time"></label>`).join('')}</div></section><div class="activity-calorie-summary" aria-label="Daily exercise calorie adjustment"><div><span>Base budget</span><strong data-base-calories>${num(baseGoals.kcal)} kcal</strong></div><div><span>${state.profile.activity===1.2?'Completed exercise · estimate':'Extra exercise credit · included in activity'}</span><strong data-calorie-credit>+${num(exerciseKcal,1)} kcal</strong></div><div><span>Adjusted calorie budget</span><strong data-adjusted-calories>${num(g.kcal,1)} kcal</strong></div><p>${state.profile.activity===1.2?'Only checked workouts for this date add estimated calories.':'Your activity factor includes usual workouts, so completed exercise is not added again.'} ${state.profile.activity>1.2?`Completed workout burn estimate: <strong data-completed-exercise-estimate>${num(exerciseEstimate,1)} kcal</strong>. `:''}Macro and nutrient targets keep their base values. <button class="text-button" data-action="view-calorie-workouts">View this day’s workouts</button></p></div>`;
 }
 
 function renderToday() {
@@ -245,7 +245,7 @@ function renderToday() {
     : `There are about ${num(r.kcal)} calories left in your selected budget. Carbs and fats are flexible targets.`;
   $('#main').innerHTML = heading('Your daily balance.',`A clear view of what you ate${isToday ? ' today' : ''}, ${esc(state.profile.name)}.`,dateControl()+addButton(),dateLabel.toUpperCase())
     + (!isToday ? `<div class="notice">${icon('history')}You’re viewing ${dateText(selectedDate,{year:'numeric'})}. <button class="text-button" data-action="today">Back to today</button></div>` : '')
-    + `<section class="card summary-card" aria-label="Daily calorie and macro progress"><div id="summary-live">${summaryContent(g,t,exerciseKcal,balance.exercise.estimatedKcal)}</div><div class="budget-row"><div class="budget-label"><strong>My base daily calorie budget</strong><span>${state.profile.activity===1.2?'Completed exercise is added separately':'Usual activity already includes workouts'}</span></div><div class="budget-slider"><span>1,200</span><input id="budget-slider" type="range" min="1200" max="${Math.max(2200,Math.ceil(g.kcal/100)*100)}" step="25" value="${g.kcal}" aria-label="Daily calorie budget"><span>${num(Math.max(2200,Math.ceil(g.kcal/100)*100))}</span></div><div class="budget-value"><input id="budget-number" type="number" min="1200" max="4000" step="25" value="${g.kcal}" aria-label="Daily calorie budget in kilocalories"><span>kcal</span></div></div></section>
+    + `<section class="card summary-card" aria-label="Daily calorie and macro progress"><div id="summary-live">${summaryContent(g,t,exerciseKcal,balance.exercise.estimatedKcal,day.mealTimes)}</div><div class="budget-row"><div class="budget-label"><strong>My base daily calorie budget</strong><span>${state.profile.activity===1.2?'Completed exercise is added separately':'Usual activity already includes workouts'}</span></div><div class="budget-slider"><span>1,200</span><input id="budget-slider" type="range" min="1200" max="${Math.max(2200,Math.ceil(g.kcal/100)*100)}" step="25" value="${g.kcal}" aria-label="Daily calorie budget"><span>${num(Math.max(2200,Math.ceil(g.kcal/100)*100))}</span></div><div class="budget-value"><input id="budget-number" type="number" min="1200" max="4000" step="25" value="${g.kcal}" aria-label="Daily calorie budget in kilocalories"><span>kcal</span></div></div></section>
     <div class="daily-grid"><section class="card"><div class="card-head"><div><h2>${isToday ? 'Today’s' : 'Your'} food journal</h2><p>Every portion, in one place.</p></div><span class="badge">${day.entries.length} ${day.entries.length===1 ? 'entry' : 'entries'}</span></div>
     ${day.entries.length ? `<div class="log-table-scroll" role="region" aria-label="Food journal entries" tabindex="0">${renderLog(day.entries)}</div>` : empty('A fresh page.','Add a usual food or save a new one to start this day.',addButton())}
     ${day.note ? `<p class="log-note">${esc(day.note)}</p>` : ''}
@@ -955,7 +955,7 @@ document.addEventListener('input',event=>{
       const g=calculateGoals(state.profile,selectedDate,Number(el.value));
       $('#budget-number').value=el.value;
       const exercise=dailyCalorieBalance(state,selectedDate,g).exercise;
-      $('#summary-live').innerHTML=summaryContent(g,totals(currentDay().entries),exercise.creditedKcal,exercise.estimatedKcal);
+      $('#summary-live').innerHTML=summaryContent(g,totals(currentDay().entries),exercise.creditedKcal,exercise.estimatedKcal,currentDay().mealTimes);
     } catch(error){toast(error.message,true);}
   }
   if(el.closest('#profile-form')) updateGoalPreview();
@@ -981,6 +981,11 @@ document.addEventListener('change',async event=>{
       finally{if(current()){el.disabled=false;el.value='';submit.disabled=false;delete form.dataset.imagePending;}}return;
     }
     if(!syncView.ready&&(el.closest('#main')||el.closest('#custom-exercise-form')))return;
+    if(el.matches('[data-meal-time]')) {
+      const day=currentDay(true),mealTimes={...(day.mealTimes||{})};
+      if(el.value)mealTimes[el.dataset.mealTime]=el.value;else delete mealTimes[el.dataset.mealTime];
+      day.mealTimes=mealTimes;save();return;
+    }
     if(el.id==='custom-unit') {
       $('#custom-reps').max=el.value==='minutes'?240:el.value==='seconds'?300:100;
       $('label[for="custom-reps"]').textContent=el.value==='minutes'?'Default minutes per set':el.value==='seconds'?'Default seconds per set':'Default reps per set';

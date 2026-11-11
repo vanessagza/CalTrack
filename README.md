@@ -189,6 +189,12 @@ adaptation, fluid shift or training response. Use the comparison to explore
 assumptions and update it with new measurements, rather than treating the
 fastest displayed date as a prescription.
 
+## Meal-time log
+
+The Daily intake summary includes time fields for breakfast, a protein shake,
+lunch and dinner. Times save with the selected date, travel with backups and
+device sync, and appear in the History PDF report.
+
 ## Daily nutrients
 
 Below the main macro bars, smaller white bars show **fiber**, **saturated

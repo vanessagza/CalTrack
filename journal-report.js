@@ -2,8 +2,8 @@ import {
   ALL_NUTRIENTS,
   WORKOUT_EQUIPMENT, WORKOUT_EXPERIENCE, WORKOUT_GOALS,
   ageAt, bodyComposition, calculateGoals, exerciseCatalog, isDateKey,
-  portionNutrition, scheduledExercise, todayKey, totals, unitLabel,
-} from './core.js?v=18';
+  portionNutrition, scheduledExercise, todayKey, totals, unitLabel, MEAL_TIME_FIELDS,
+} from './core.js?v=19';
 import { activityOptions } from './activity-guide.js?v=18';
 import { workoutDayEnergy } from './exercise-energy.js?v=18';
 import { goalForecast } from './goal-forecast.js?v=19';
@@ -70,13 +70,13 @@ function profileDetails(profile,calculation,composition,generatedDate) {
 export function buildJournalReport(state, generatedDate=todayKey()) {
   if(!state || typeof state!=='object' || !state.profile || !isDateKey(generatedDate)) throw new Error('The saved journal is not ready for a report.');
   const profile=state.profile,workouts=state.workouts||{days:{},notes:{},settings:{},exercises:[]};
-  const foodDays=Object.entries(state.days||{}).filter(([,day])=>day && ((day.entries||[]).length || String(day.note||'').trim() || day.goals))
+  const foodDays=Object.entries(state.days||{}).filter(([,day])=>day && ((day.entries||[]).length || String(day.note||'').trim() || day.goals || Object.keys(day.mealTimes||{}).length))
     .sort(([a],[b])=>a.localeCompare(b)).map(([date,day])=>{
       const entries=(day.entries||[]).map(entry=>{
         const consumed=portionNutrition(entry.food,entry.amount,entry.unit),unit=unitLabel(entry.food,entry.unit);
         return {...entry,consumed,portionLabel:`${number(entry.amount,2)} ${unit}${entry.amount>1&&entry.unit==='portion'&&!['tbsp','tsp','mL'].includes(unit)?'s':''} · ${number(consumed.grams,1)} g recorded portion`};
       });
-      return {date,entries,total:totals(entries),goals:day.goals||calculateGoals(profile,date),goalSource:day.goals?'Saved targets':'Targets calculated from the current profile',note:String(day.note||'')};
+      return {date,entries,total:totals(entries),goals:day.goals||calculateGoals(profile,date),goalSource:day.goals?'Saved targets':'Targets calculated from the current profile',note:String(day.note||''),mealTimes:day.mealTimes||{}};
     });
   const allFoodEntries=foodDays.flatMap(day=>day.entries),foodTotals=totals(allFoodEntries);
   const measurements=[...(state.weights||[])].sort((a,b)=>a.date.localeCompare(b.date));
@@ -127,7 +127,7 @@ function goalTimelineMarkup(report) {
 
 function foodHistoryMarkup(report) {
   if(!report.foodDays.length) return `<section class="section"><h2>Food history</h2><p class="empty">No dated food entries or day notes are saved.</p></section>`;
-  return `<section class="section"><h2>Food history</h2>${report.foodDays.map(day=>`<article class="record-day"><div class="day-heading"><div><h3>${esc(dateLabel(day.date))}</h3><p>${day.entries.length} food ${day.entries.length===1?'entry':'entries'}</p></div><strong>${number(day.total.kcal)} kcal</strong></div><div class="nutrient-grid">${reportNutrients(day.total)}</div><p class="targets"><strong>${esc(day.goalSource)}:</strong> ${number(day.goals.kcal)} kcal · ${number(day.goals.protein,1)} g protein · ${number(day.goals.carbs,1)} g carbohydrates · ${number(day.goals.fat,1)} g fat</p>${day.note?`<p class="user-note"><strong>Day note:</strong> ${esc(day.note)}</p>`:''}${day.entries.length?day.entries.map(item=>`<div class="food-entry"><div class="entry-heading"><strong>${esc(item.food.name)}</strong><span>${esc(item.meal)} · ${esc(item.food.category)}</span></div><p class="entry-portion">${esc(item.portionLabel)}</p><div class="nutrient-grid">${reportNutrients(item.consumed)}</div>${item.food.note?`<p class="entry-note"><strong>Saved food note:</strong> ${esc(item.food.note)}</p>`:''}</div>`).join(''):'<p class="empty">No food portions were entered for this date.</p>'}</article>`).join('')}</section>`;
+  return `<section class="section"><h2>Food history</h2>${report.foodDays.map(day=>`<article class="record-day"><div class="day-heading"><div><h3>${esc(dateLabel(day.date))}</h3><p>${day.entries.length} food ${day.entries.length===1?'entry':'entries'}</p></div><strong>${number(day.total.kcal)} kcal</strong></div><div class="nutrient-grid">${reportNutrients(day.total)}</div><p class="targets"><strong>${esc(day.goalSource)}:</strong> ${number(day.goals.kcal)} kcal · ${number(day.goals.protein,1)} g protein · ${number(day.goals.carbs,1)} g carbohydrates · ${number(day.goals.fat,1)} g fat</p>${Object.keys(day.mealTimes).length?`<p class="targets"><strong>Meal times:</strong> ${MEAL_TIME_FIELDS.filter(({key})=>day.mealTimes[key]).map(({key,label})=>`${esc(label)} ${esc(day.mealTimes[key])}`).join(' · ')}</p>`:''}${day.note?`<p class="user-note"><strong>Day note:</strong> ${esc(day.note)}</p>`:''}${day.entries.length?day.entries.map(item=>`<div class="food-entry"><div class="entry-heading"><strong>${esc(item.food.name)}</strong><span>${esc(item.meal)} · ${esc(item.food.category)}</span></div><p class="entry-portion">${esc(item.portionLabel)}</p><div class="nutrient-grid">${reportNutrients(item.consumed)}</div>${item.food.note?`<p class="entry-note"><strong>Saved food note:</strong> ${esc(item.food.note)}</p>`:''}</div>`).join(''):'<p class="empty">No food portions were entered for this date.</p>'}</article>`).join('')}</section>`;
 }
 
 function measurementMarkup(report) {

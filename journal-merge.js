@@ -1,6 +1,6 @@
-import { validateState, validateWorkouts,todayKey } from './core.js?v=18';
+import { validateState, validateWorkouts,todayKey } from './core.js?v=19';
 import { validatePreferences } from './preferences.js?v=18';
-import { validateCloudJournal } from './sync-journal.js?v=18';
+import { validateCloudJournal } from './sync-journal.js?v=19';
 
 const canonical = value => JSON.stringify(value, function (key, item) {
   return item && typeof item === 'object' && !Array.isArray(item)
@@ -30,10 +30,16 @@ function fields(base, local, remote, resolve=choice) {
 }
 function day(base, local, remote, resolve=choice) {
   if (!local || !remote) return resolve(base, local, remote);
+  const mealTimes={};
+  for(const key of new Set([...Object.keys(base?.mealTimes||{}),...Object.keys(local.mealTimes||{}),...Object.keys(remote.mealTimes||{})])) {
+    const value=resolve(base?.mealTimes?.[key],local.mealTimes?.[key],remote.mealTimes?.[key]);
+    if(value!==undefined)mealTimes[key]=value;
+  }
   return {
     entries: keyed(base?.entries || [], local.entries, remote.entries, 'id',(b,l,r)=>fields(b,l,r,resolve)),
     goals: resolve(base?.goals, local.goals, remote.goals),
     note: resolve(base?.note || '', local.note || '', remote.note || ''),
+    mealTimes,
   };
 }
 export function mergeJournals(base, local, remote, {preferLocal=false,today=todayKey()}={}) {
