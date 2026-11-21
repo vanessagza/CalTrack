@@ -273,17 +273,18 @@ test('sedentary maintenance adds only completed exercise on included food days',
   near(weeklyIntake(state,monday,today).averageDailyMaintenanceKcal,2100);
 });
 
-test('higher activity multipliers already account for exercise and do not add it again',()=>{
+test('higher activity multipliers still credit walking but exclude other workouts',()=>{
   const state=fixture();
   state.profile.activity=1.55;
   state.intakeClosedThrough=monday;
   log(state,monday,2000);
-  state.workouts.days[monday]=[walk('done')];
+  state.workouts.days[monday]=[walk('done'),validateWorkoutEntry({id:'squat',exerciseId:'squat',sets:1,reps:10,completed:true})];
   const result=weeklyIntake(state,monday,today);
+  const extra=(2.8-1)*3.5*77/200*30;
   near(result.days[0].baseMaintenanceKcal,2712.5);
-  assert.equal(result.days[0].exerciseKcal,0);
-  near(result.days[0].maintenanceKcal,2712.5);
-  near(result.averageDailyMaintenanceKcal,2712.5);
+  near(result.days[0].exerciseKcal,extra);
+  near(result.days[0].maintenanceKcal,2712.5+extra);
+  near(result.averageDailyMaintenanceKcal,2712.5+extra);
 });
 
 test('saved food snapshots determine totals and repeated calculations never mutate the journal',()=>{

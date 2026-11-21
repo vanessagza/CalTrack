@@ -514,6 +514,14 @@ export function scheduledExercise(entry,workouts) {
   return {...entry.exercise,...exercise,...(entry.exercise?{unit:entry.exercise.unit,unilateral:entry.exercise.unilateral}:{}),
     energy:exercise?exercise.energy??null:entry.exercise?.energy??null};
 }
+export const MAX_WALK_STEPS=100000;
+export function validateWalkSteps(value) {
+  const steps=optionalNumber(value,1,MAX_WALK_STEPS,'Steps walked');
+  if(steps===null)return null;
+  if(!Number.isInteger(steps))throw new Error('Steps walked must be a whole number.');
+  return steps;
+}
+
 export function validateWorkoutEntry(value,catalog=EXERCISE_PRESETS) {
   if (!value || typeof value !== 'object') throw new Error('Workout exercise is missing.');
   let preset = catalog.find(e => e.id === value.exerciseId);
@@ -537,7 +545,7 @@ export function validateWorkoutEntry(value,catalog=EXERCISE_PRESETS) {
   if (value.completed !== undefined && typeof value.completed !== 'boolean') throw new Error('Exercise completion is invalid.');
   if(!snapshot)snapshot={id:preset.id,name:preset.name,group:preset.group,equipment:preset.equipment,unit:preset.unit,unilateral:preset.unilateral===true,energy:validateExerciseEnergy(preset.energy)};
   return { id:value.id, exerciseId:preset.id, sets,setsMax,reps,repsMax,restSeconds,load,...(snapshot?{exercise:snapshot}:{}),
-    note:String(value.note || '').slice(0, 400), completed:value.completed === true };
+    note:String(value.note || '').slice(0, 400), ...(preset.id==='walking'?{steps:validateWalkSteps(value.steps)}:{}), completed:value.completed === true };
 }
 export function validateSessionNote(value={}) {
   if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Session details are invalid.');
@@ -605,13 +613,17 @@ export function workoutSuggestion(profile, settings, exerciseId, date = todayKey
   return { sets:exercise.unit==='minutes'?1:sets,reps,load:null,restSeconds:exercise.unit==='minutes'?0:60,energy,reducedVolume };
 }
 
+export function plannedWorkoutEntry(entry) {
+  return {...entry,completed:false,...(entry.exerciseId==='walking'?{steps:null}:{})};
+}
+
 export function starterWeek(settings,date,existing={},earliest=todayKey(),template=null) {
   const dates=weekDates(date),days={},notes={};
   const personal=template?.config===workoutConfigKey(settings)?template:null;
   if(!personal&&!matchesStarterRoutine(settings))return {days,notes};
   dates.forEach((day,index)=>{
     if(day<earliest||existing[day]?.length)return;
-    days[day]=personal?personal.days[index].map(entry=>({...entry,id:crypto.randomUUID(),completed:false})):PRESERVATION_ROUTINE[index].entries.map(([exerciseId,sets,reps,repsMax,restSeconds,setsMax=sets])=>validateWorkoutEntry({id:crypto.randomUUID(),exerciseId,sets,setsMax,reps,repsMax,restSeconds,load:null,completed:false}));
+    days[day]=personal?personal.days[index].map(entry=>({...plannedWorkoutEntry(entry),id:crypto.randomUUID()})):PRESERVATION_ROUTINE[index].entries.map(([exerciseId,sets,reps,repsMax,restSeconds,setsMax=sets])=>validateWorkoutEntry({id:crypto.randomUUID(),exerciseId,sets,setsMax,reps,repsMax,restSeconds,load:null,completed:false}));
     notes[day]=validateSessionNote(personal?personal.notes[index]:PRESERVATION_ROUTINE[index]);
   });
   return {days,notes};
@@ -644,7 +656,7 @@ export function copyWorkoutWeek(days, date, earliest = todayKey(),catalog=EXERCI
   for (const source of weekDates(date)) {
     const target = shiftDate(source, 7);
     if (target < earliest || days[target]?.length || !days[source]?.length) continue;
-    result[target] = days[source].map(entry => validateWorkoutEntry({ ...entry, id:crypto.randomUUID(), completed:false },catalog));
+    result[target] = days[source].map(entry => validateWorkoutEntry({ ...plannedWorkoutEntry(entry), id:crypto.randomUUID() },catalog));
   }
   return result;
 }

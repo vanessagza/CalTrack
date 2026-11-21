@@ -1,4 +1,4 @@
-import {isDateKey,scheduledExercise,calculateGoals,totals,validateExerciseEnergy} from './core.js?v=18';
+import {isDateKey,scheduledExercise,calculateGoals,totals,validateExerciseEnergy,validateWalkSteps} from './core.js?v=24';
 
 // Planning assumptions informed by activity categories in the Adult Compendium.
 // METs describe average intensity, not measured energy for an individual lift.
@@ -37,8 +37,16 @@ function exerciseDuration(entry,exercise) {
     usesRange:setsMax!==sets||targetMax!==target};
 }
 export function exerciseActiveMinutes(entry,exercise) {return exerciseDuration(entry,exercise).activeMinutes;}
-export function exerciseEnergy(entry,exercise,weightKg) {
+export function exerciseEnergy(entry,exercise,weightKg,heightCm) {
   if(!Number.isFinite(weightKg)||weightKg<30||weightKg>250)throw new Error('Enter a body weight between 30 and 250 kg.');
+  const steps=exercise.id==='walking'?validateWalkSteps(entry.steps):null;
+  if(steps!==null) {
+    if(!Number.isFinite(heightCm)||heightCm<100||heightCm>230)throw new Error('Enter a valid profile height to estimate walking calories.');
+    const stepLengthMeters=0.415*heightCm/100;
+    const activeMinutes=steps*stepLengthMeters/(4000/60);
+    const met=PRESETS.walking[0];
+    return {activeMinutes,met,weightKg,kcal:(met-1)*3.5*weightKg/200*activeMinutes,steps};
+  }
   const duration=exerciseDuration(entry,exercise),energy=validateExerciseEnergy(exercise.energy);
   // Calibrate net MET from the user's extra calorie estimate for their default
   // work, then use the same active-duration and dated-weight scaling as presets.
@@ -56,10 +64,23 @@ export function workoutDayEnergy(state,date) {
   const weightKg=exerciseWeightForDate(state,date);
   const entries=(state.workouts.days[date]||[]).map(entry=>{
     const exercise=scheduledExercise(entry,state.workouts);
-    return {entry,exercise,estimate:exerciseEnergy(entry,exercise,weightKg)};
+    return {entry,exercise,estimate:exerciseEnergy(entry,exercise,weightKg,state.profile.height)};
   });
-  return {weightKg,entries,plannedKcal:entries.reduce((sum,item)=>sum+item.estimate.kcal,0),
-    creditedKcal:entries.reduce((sum,item)=>sum+(item.entry.completed?item.estimate.kcal:0),0)};
+  let plannedKcal=0,completedWorkoutKcal=0,walkingKcal=0;
+  for(const {entry,exercise,estimate} of entries) {
+    if(exercise.id==='walking') {
+      if(entry.completed)walkingKcal+=estimate.kcal;
+    } else {
+      plannedKcal+=estimate.kcal;
+      if(entry.completed)completedWorkoutKcal+=estimate.kcal;
+    }
+  }
+  return {weightKg,entries,plannedKcal,completedWorkoutKcal,walkingKcal,
+    creditedKcal:completedWorkoutKcal+walkingKcal};
+}
+
+export function workoutBudgetCredit(estimate,activity) {
+  return estimate.walkingKcal+(Number(activity)>1.2?0:estimate.completedWorkoutKcal);
 }
 export function dailyCalorieBalance(state,date,baseGoals=null) {
   const goals=baseGoals||state.days[date]?.goals||calculateGoals(state.profile,date);
@@ -68,7 +89,7 @@ export function dailyCalorieBalance(state,date,baseGoals=null) {
   // Keep the completed estimate available without adding that energy twice.
   const activityIncluded=Number(state.profile.activity)>1.2;
   const exercise={...estimate,estimatedKcal:estimate.creditedKcal,activityIncluded,
-    creditedKcal:activityIncluded?0:estimate.creditedKcal};
+    creditedKcal:workoutBudgetCredit(estimate,state.profile.activity)};
   const adjustedKcal=goals.kcal+exercise.creditedKcal;
   return {baseGoals:goals,baseKcal:goals.kcal,exercise,consumed,adjustedKcal,
     remainingKcal:adjustedKcal-consumed.kcal};

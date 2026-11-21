@@ -420,9 +420,14 @@ edited fields on the latest account revision, preserving unrelated settings.
 
 ### Completed workouts and calorie remaining
 
-At activity **1.20**, checking an exercise adds its **estimated extra energy**
-to that date's calorie budget. With a higher activity factor, usual workouts
-are already included, so completed exercise adds no second credit. Daily intake
+For **Comfortable walk**, enter **Steps walked** to log a completed walk and see
+a live calorie estimate based on your dated body weight, profile height and
+an assumed pace of 4 km/h. Leave steps blank to schedule a time-based walk.
+Completed walks add extra calories to that day's budget at every activity
+level. Copied weeks and repeating routines start without logged steps.
+
+Other completed workouts add their estimated extra energy at activity **1.20**.
+Higher activity factors already include usual workouts. Daily intake
 shows the base budget, completed exercise credit and adjusted budget separately.
 Remaining calories are **base budget + completed exercise credit − logged food**.
 Saved macro targets retain their base values. Workouts
@@ -436,7 +441,7 @@ example, 100 kcal for 2 sets of 10 reps at 70 kg becomes 200 kcal for 4 sets of
 10 reps at the same weight. The saved calibration scales as **reference kcal ×
 current weight ÷ reference weight × active minutes ÷ reference active minutes**.
 Zero calories is allowed. The live preview shows the result; checking the
-scheduled exercise adds it to that day's budget only with activity factor 1.20; higher factors already include usual workouts. Library calorie edits update
+scheduled exercise adds it to that day's budget at activity factor 1.20. Time-based Comfortable walk entries receive credit at every activity level. Walks with logged steps use the step-based estimate. Library calorie edits update
 existing workouts immediately, and your calorie settings travel with backups
 and private sync. Choose **Automatic estimate** to return to the formula below.
 

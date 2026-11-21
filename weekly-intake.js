@@ -1,10 +1,10 @@
 import {
   energyNeeds, closedIntakeThrough, isDateKey, todayKey,
   totals as foodTotals, validateProfile, weekDates,
-} from './core.js?v=18';
-import { exerciseWeightForDate, workoutDayEnergy } from './exercise-energy.js?v=18';
+} from './core.js?v=24';
+import { exerciseWeightForDate, workoutDayEnergy, workoutBudgetCredit } from './exercise-energy.js?v=24';
 
-export { closeIntakeDays, closedIntakeThrough as inferredIntakeClosedThrough } from './core.js?v=18';
+export { closeIntakeDays, closedIntakeThrough as inferredIntakeClosedThrough } from './core.js?v=24';
 
 // A practical comparison band, not a claim that predicted expenditure is exact.
 const MAINTENANCE_TOLERANCE = 0.05;
@@ -24,11 +24,10 @@ function maintenanceForDate(state, profile, date) {
   // reading or combine a historical weight with today's composition.
   const energy = energyNeeds(profile, date, weightKg, measurement?.bodyFatPercent ?? null);
   const baseMaintenanceKcal = energy.tdee;
-  // Higher activity multipliers already include habitual activity. Only the
-  // sedentary baseline receives additional completed, net exercise estimates.
+  // Walking is credited at every activity level.
   const hasCompletedExercise = state.workouts?.days?.[date]?.some(entry => entry.completed === true);
-  const exerciseKcal = profile.activity === 1.2 && hasCompletedExercise
-    ? workoutDayEnergy(state, date).creditedKcal : 0;
+  const exerciseKcal = hasCompletedExercise
+    ? workoutBudgetCredit(workoutDayEnergy(state, date),profile.activity) : 0;
   return {
     baseMaintenanceKcal, exerciseKcal, maintenanceKcal:baseMaintenanceKcal + exerciseKcal,
     rmrKcal:energy.goalRmr, goalMaintenanceKcal:energy.goalTdee, currentRmrKcal:energy.rmr,

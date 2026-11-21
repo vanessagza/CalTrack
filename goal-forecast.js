@@ -1,8 +1,8 @@
 import {
   ageAt, calculateGoals, closedIntakeThrough, isDateKey, shiftDate, todayKey,
   totals, validateProfile,
-} from './core.js?v=18';
-import { workoutDayEnergy } from './exercise-energy.js?v=18';
+} from './core.js?v=24';
+import { workoutDayEnergy } from './exercise-energy.js?v=24';
 
 const MAX_DAYS = 1095;
 const HISTORY_DAYS = 90;
@@ -91,10 +91,14 @@ function context(state, today) {
     days:foodDays.length,windowDays:INTAKE_DAYS,
     firstDate:foodDays[0]?.[0] || null,lastDate:foodDays.at(-1)?.[0] || null,
   };
-  let exerciseTotal = 0;
+  let exerciseTotal = 0, walkingTotal = 0;
   {
     for (const [date,entries] of Object.entries(state.workouts?.days || {})) {
-      if (isDateKey(date) && date>=intakeStart && date<today && entries.some(entry=>entry.completed)) exerciseTotal+=workoutDayEnergy(state,date).creditedKcal;
+      if (isDateKey(date) && date>=intakeStart && date<today && entries.some(entry=>entry.completed)) {
+        const energy=workoutDayEnergy(state,date);
+        exerciseTotal+=energy.completedWorkoutKcal;
+        walkingTotal+=energy.walkingKcal;
+      }
     }
   }
   const muscle = metrics.find(metric=>metric.key==='muscleMass');
@@ -105,7 +109,7 @@ function context(state, today) {
   };
   const defaults = {
     calories:Number(intake.kcal.toFixed(4)),activity:profile.activity,muscleRatePerWeek,
-    exerciseKcalPerDay:exerciseTotal/INTAKE_DAYS,
+    exerciseKcalPerDay:exerciseTotal/INTAKE_DAYS,walkingKcalPerDay:walkingTotal/INTAKE_DAYS,
   };
   return {profile,mode:profile.goalMode,asOf:today,history,intake,limits,defaults};
 }
@@ -114,7 +118,7 @@ function projectedTdee(profile,date,activity,exerciseKcalPerDay,weight,bodyFatPe
   const rmr = profile.goalMode === 'composition'
     ? 370+21.6*weight*(1-bodyFatPercent/100)
     : 10*weight+6.25*profile.height-5*ageAt(profile.birthDate,date)+(profile.sex==='male'?5:-161);
-  return rmr*activity+(activity===1.2?exerciseKcalPerDay:0);
+  return rmr*activity+exerciseKcalPerDay;
 }
 
 function modelScenario(ctx, options, today) {
@@ -145,7 +149,7 @@ function modelScenario(ctx, options, today) {
   const isReached = definition=>reached(currentFor(definition),definition.target,signFor(definition));
   const muscleDefinition = definitions.find(definition=>definition.key==='muscleMass');
   const missingMuscleRate = muscleDefinition && !isReached(muscleDefinition) && muscleRatePerWeek===null;
-  result.currentTdee = projectedTdee(profile,today,activity,exerciseKcalPerDay,weight,profile.bodyFatPercent);
+  result.currentTdee = projectedTdee(profile,today,activity,exerciseKcalPerDay+ctx.defaults.walkingKcalPerDay,weight,profile.bodyFatPercent);
   result.dailyBalanceKcal = result.currentTdee-calories;
   let terminated = false;
   for (let day=0;day<=MAX_DAYS;day++) {
@@ -159,7 +163,7 @@ function modelScenario(ctx, options, today) {
     if (allReached) return {...result,status:day===0?'reached':'estimated',...dated(day,today)};
     if (day===MAX_DAYS) break;
     const date = shiftDate(today,day);
-    const tdee = projectedTdee(profile,date,activity,exerciseKcalPerDay,weight,fatMass===null?null:fatMass/weight*100);
+    const tdee = projectedTdee(profile,date,activity,exerciseKcalPerDay+ctx.defaults.walkingKcalPerDay,weight,fatMass===null?null:fatMass/weight*100);
     const massChange = (calories-tdee)/KCAL_PER_KG;
     if (profile.goalMode==='weight') {
       weight+=massChange;

@@ -96,17 +96,20 @@ test('intake uses at least seven closed food days in the preceding28 calendar da
   assert.ok(goalForecast(state,today).intake.days<7);
 });
 
-test('exercise average divides recorded net work by28 calendar days and selected1.20 alone applies it',()=>{
+test('forecast averages 28 days of walks at every factor and other workouts at 1.20',()=>{
   const state=fixture({activity:1.3});
-  const entry=validateWorkoutEntry({id:'walk',exerciseId:'walking',sets:1,reps:30,completed:true,load:null});
-  for(const offset of [28,29,0,-1])state.workouts.days[shiftDate(today,-offset)]=[{...entry,id:'walk-'+offset}];
-  const raw=workoutDayEnergy(state,shiftDate(today,-28)).creditedKcal;
-  const forecast=goalForecast(state,today);near(forecast.defaults.exerciseKcalPerDay,raw/28);
-  assert.equal(forecast.scenario.exerciseKcalPerDay,0);
-  const seated=forecastScenario(state,{activity:1.2},today),active=forecastScenario(state,{activity:1.3},today);
-  near(seated.exerciseKcalPerDay,raw/28);assert.equal(active.exerciseKcalPerDay,0);
-  const noExercise=forecastScenario(state,{activity:1.2,exerciseKcalPerDay:0},today);
-  near(seated.currentTdee-noExercise.currentTdee,raw/28);
+  const walk=validateWorkoutEntry({id:'walk',exerciseId:'walking',sets:1,reps:30,completed:true});
+  const squat=validateWorkoutEntry({id:'squat',exerciseId:'squat',sets:1,reps:10,completed:true});
+  const baseline=structuredClone(state);
+  for(const offset of [28,29,0,-1])state.workouts.days[shiftDate(today,-offset)]=[{...walk,id:'walk-'+offset},{...squat,id:'squat-'+offset}];
+  const raw=workoutDayEnergy(state,shiftDate(today,-28));
+  const forecast=goalForecast(state,today);
+  near(forecast.defaults.exerciseKcalPerDay,raw.completedWorkoutKcal/28);
+  near(forecast.defaults.walkingKcalPerDay,raw.walkingKcal/28);
+  for (const activity of [1.2,1.3]) {
+    const scenario=forecastScenario(state,{activity},today),without=forecastScenario(baseline,{activity},today);
+    near(scenario.currentTdee-without.currentTdee,(activity===1.2?raw.creditedKcal:raw.walkingKcal)/28);
+  }
 });
 
 test('formula scenarios recompute expenditure, plateau, handle gain, and leave saved values unchanged',()=>{

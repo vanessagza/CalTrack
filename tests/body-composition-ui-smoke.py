@@ -185,21 +185,21 @@ with sync_playwright() as p:
     progress(50)
     page.locator('[data-nav="goals"]').click()
 
-    # Habitual activity includes usual workouts, while 1.20 credits logged work.
+    # Completed walks receive credit with habitual and seated activity factors.
     page.locator('#activity').select_option('1.3')
-    expect(page.locator('[data-activity-policy]')).to_contain_text('does not add a second credit')
+    expect(page.locator('[data-activity-policy]')).to_contain_text('Completed walks add extra calories')
     save_goals()
     page.locator('[data-nav="today"]').click()
     base = amount('[data-base-calories]')
     page.locator('[data-action="view-calorie-workouts"]').click()
     page.get_by_label('Mark Comfortable walk complete', exact=True).check()
-    near(amount('[data-workout-calorie-credit]'), 0)
     raw_burn = amount('[data-workout-calorie-estimate]')
+    near(amount('[data-workout-calorie-credit]'), raw_burn)
     assert raw_burn > 0
-    expect(page.locator('.workout-energy-summary')).to_contain_text('already includes usual workouts')
+    expect(page.locator('.workout-energy-summary')).to_contain_text('Completed walks add extra calorie credit')
     page.locator('[data-action="workout-food-day"]').click()
-    near(amount('[data-calorie-credit]'), 0)
-    near(amount('[data-adjusted-calories]'), base)
+    near(amount('[data-calorie-credit]'), raw_burn)
+    near(amount('[data-adjusted-calories]'), base + raw_burn)
     page.locator('[data-nav="goals"]').click()
     page.locator('#activity').select_option('1.2')
     save_goals()

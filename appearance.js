@@ -1,5 +1,5 @@
 import { mixColors, accentText } from './preferences.js?v=18';
-import { EXERCISE_IMAGE_MAX_LENGTH } from './core.js?v=18';
+import { EXERCISE_IMAGE_MAX_LENGTH } from './core.js?v=24';
 
 export function applyAppearance(preferences) {
   window.DailyBalanceTheme.setPreference(preferences.theme);

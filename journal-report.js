@@ -3,10 +3,10 @@ import {
   WORKOUT_EQUIPMENT, WORKOUT_EXPERIENCE, WORKOUT_GOALS,
   ageAt, bodyComposition, calculateGoals, exerciseCatalog, isDateKey,
   portionNutrition, scheduledExercise, todayKey, totals, unitLabel, MEAL_TIME_FIELDS,
-} from './core.js?v=19';
-import { activityOptions } from './activity-guide.js?v=18';
-import { workoutDayEnergy } from './exercise-energy.js?v=18';
-import { goalForecast } from './goal-forecast.js?v=19';
+} from './core.js?v=24';
+import { activityOptions } from './activity-guide.js?v=24';
+import { workoutDayEnergy } from './exercise-energy.js?v=24';
+import { goalForecast } from './goal-forecast.js?v=24';
 
 const NUTRIENT_LABELS = {
   kcal:['Calories','kcal',0], protein:['Protein','g',1], carbs:['Carbohydrates','g',1], fat:['Fat','g',1],
@@ -27,6 +27,7 @@ const range = (min,max=min) => Number(min)===Number(max) ? String(min) : `${min}
 const joined = values => values.filter(Boolean).join(' · ');
 
 function workoutPrescription(entry, exercise) {
+  if(entry.steps)return `${number(entry.steps,0)} steps`;
   const target = `${range(entry.reps,entry.repsMax ?? entry.reps)} ${exercise.unit==='seconds'?'sec':exercise.unit==='minutes'?'min':'reps'}${exercise.unilateral?' / side':''}`;
   const work = exercise.unit==='minutes' && entry.sets===1 ? target : `${range(entry.sets,entry.setsMax ?? entry.sets)} sets × ${target}`;
   return joined([work,entry.load==null?null:`${number(entry.load,1)} kg`,entry.restSeconds?`${entry.restSeconds} sec rest`:null]);
@@ -120,7 +121,7 @@ function goalTimelineMarkup(report) {
   const forecast=report.forecast;
   if(!forecast)return `<section class="section"><h2>Goal timeline</h2><p class="empty">Set up a profile to calculate the goal timeline.</p></section>`;
   const historyRows=forecast.history.metrics.map(metric=>`<tr><td>${esc(metric.label)}</td><td>${number(metric.current,1)} → ${number(metric.target,1)} ${esc(metric.unit)}</td><td>${esc(estimateText(metric))}</td><td>${Number.isFinite(metric.ratePerWeek)?`${metric.ratePerWeek>0?'+':''}${number(metric.ratePerWeek,3)} ${metric.key==='bodyFatPercent'?'percentage points':'kg'} / week`:'—'}</td><td>${metric.points?`${number(metric.points,0)} readings · ${number(metric.spanDays,0)} days`:'—'}</td></tr>`).join('');
-  const assumptions=[['Starting daily intake',`${number(forecast.defaults.calories)} kcal`],['Intake source',forecast.intake.source==='history'?`Average of ${number(forecast.intake.days,0)} closed logged days`:'Saved profile budget'],['Typical activity',`${number(forecast.defaults.activity,3)} factor`],['Extra exercise average',forecast.defaults.activity===1.2?`${number(forecast.defaults.exerciseKcalPerDay)} kcal/day`:'Included in activity factor'],['Assumed muscle change',forecast.defaults.muscleRatePerWeek==null?'Not specified':`${number(forecast.defaults.muscleRatePerWeek,3)} kg/week`]];
+  const assumptions=[['Starting daily intake',`${number(forecast.defaults.calories)} kcal`],['Intake source',forecast.intake.source==='history'?`Average of ${number(forecast.intake.days,0)} closed logged days`:'Saved profile budget'],['Typical activity',`${number(forecast.defaults.activity,3)} factor`],['Extra exercise average',forecast.defaults.activity===1.2?`${number(forecast.defaults.exerciseKcalPerDay)} kcal/day`:'Included in activity factor'],['Extra walking average',`${number(forecast.defaults.walkingKcalPerDay)} kcal/day`],['Assumed muscle change',forecast.defaults.muscleRatePerWeek==null?'Not specified':`${number(forecast.defaults.muscleRatePerWeek,3)} kg/week`]];
   const scenarioRows=forecast.scenario.metrics.map(metric=>`<tr><td>${esc(metric.label)}</td><td>${number(metric.current,1)} → ${number(metric.target,1)} ${esc(metric.unit)}</td><td>${esc(estimateText(metric))}</td></tr>`).join('');
   return `<section class="section page-start"><h2>Goal timeline &amp; saved scenario</h2><div class="record-day"><div class="day-heading"><div><h3>Measured-history estimate</h3><p>Based on dated measurements as of ${esc(dateLabel(forecast.asOf))}</p></div><strong>${esc(estimateText(forecast.history))}</strong></div><p class="note">${esc(forecast.history.reason||'Uses the recent measured trend; it is an estimate, not a deadline.')}</p><table><thead><tr><th>Goal</th><th>Current → target</th><th>Timeline</th><th>Measured pace</th><th>Data</th></tr></thead><tbody>${historyRows}</tbody></table></div><div class="record-day"><div class="day-heading"><div><h3>What-if estimate from saved settings</h3><p>This uses the starting assumptions shown below, not unsaved changes to the interactive controls.</p></div><strong>${esc(estimateText(forecast.scenario))}</strong></div><p class="note">${esc(forecast.scenario.reason||'Energy-model estimate; real energy needs and measurement changes vary.')}</p><div class="details-grid">${assumptions.map(([label,value])=>`<div class="detail"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}</div><table><thead><tr><th>Goal</th><th>Current → target</th><th>Scenario timeline</th></tr></thead><tbody>${scenarioRows}</tbody></table></div></section>`;
 }

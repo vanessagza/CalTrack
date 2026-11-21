@@ -1,4 +1,4 @@
-import { validateState,closedIntakeThrough,todayKey } from './core.js?v=19';
+import { validateState,closedIntakeThrough,todayKey } from './core.js?v=24';
 import { validatePreferences,DEFAULT_PREFERENCES } from './preferences.js?v=18';
 
 const NUTRITION_FIELDS=['fiber','saturatedFat','sugar','addedSugar','sodium','nutrientNote','nutrientSource'];
@@ -129,6 +129,7 @@ export function validateCloudJournal(value,previous,today=todayKey()) {
       if(!entry||typeof entry!=='object')return entry;
       const saved=savedEntries.get(entry.id);
       if(!saved?.exercise||saved.exerciseId!==entry.exerciseId)return entry;
+      if(entry.exerciseId==='walking'&&entry.steps===undefined&&saved.steps!=null)entry={...entry,steps:saved.steps};
       if(entry.exercise===undefined)return {...entry,exercise:saved.exercise};
       if(entry.exercise&&typeof entry.exercise==='object'&&!Object.hasOwn(entry.exercise,'energy'))return {...entry,exercise:{...entry.exercise,energy:saved.exercise.energy??null}};
       return entry;

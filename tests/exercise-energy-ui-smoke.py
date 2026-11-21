@@ -111,6 +111,23 @@ with sync_playwright() as p:
     page.screenshot(path='/tmp/caltrack-exercise-calories-workouts-mobile.png')
     page.locator('[data-action="workout-food-day"]').click()
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    # Saving steps logs a completed walk, even when choosing another date.
+    page.locator('[data-action="view-calorie-workouts"]').click()
+    page.locator('[data-action="pick-exercise"]').first.click()
+    page.locator('#exercise-search').fill('comfortable walk')
+    page.locator('[data-action="choose-exercise"][data-id="walking"]').click()
+    page.locator('#exercise-date').fill('2026-10-12')
+    page.get_by_label('Steps walked',exact=False).fill('5000')
+    expect(page.locator('#workout-targets')).to_be_hidden()
+    step_credit=energy(2.8,5000*0.415*1.7/(4000/60),65)
+    near(amount('#workout-energy-preview'),step_credit)
+    page.locator('#workout-form button[type=submit]').click()
+    assert state()['workouts']['days']['2026-10-12'][-1]['steps']==5000
+    assert state()['workouts']['days']['2026-10-12'][-1]['completed']
+    near(day_credit(),energy(2.8,10,65)+step_credit)
+    page.reload()
+    page.locator('#workout-date').fill('2026-10-12')
+    expect(page.locator('.workout-detail').last).to_contain_text('5,000 steps')
     # A new historical food day keeps its own calculated base after its first save.
     past='2020-01-01'
     historical=copy.deepcopy(fixture)

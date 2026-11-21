@@ -607,3 +607,6 @@ html[data-density="compact"] .library-card-image{height:160px}
 .weight-table td{padding-inline:5px}
 .composition-progress.card{padding:24px}
 @media(max-width:550px){.composition-progress.card{padding:20px}}
+
+#workout-targets{grid-column:1/-1;border:0;padding:0;margin:0;min-width:0}
+#workout-targets[hidden],#workout-suggestion[hidden]{display:none}

@@ -115,3 +115,24 @@ test('invalid dates, weights and targets cannot create negative or non-finite ca
   assert.throws(()=>exerciseEnergy({...entry(),repsMax:2},preset('goblet-squat'),70));
   assert.throws(()=>workoutDayEnergy(fixture(),'2026-02-30'));
 });
+
+test('logged walk steps use profile height and dated weight and earn credit outside planned workouts',()=>{
+  const state=fixture();
+  state.profile.activity=1.55;
+  state.profile.height=170;
+  state.weights=[{date,weight:70},{date:'2026-10-14',weight:80}];
+  state.workouts.days[date]=[entry('goblet-squat',{completed:true}),entry('walking',{id:'walk',steps:'5000',completed:true})];
+  const balance=dailyCalorieBalance(state,date);
+  const [squat,walk]=balance.exercise.entries.map(item=>item.estimate);
+  const minutes=5000*0.415*1.7/(4000/60);
+  close(walk.activeMinutes,minutes);
+  close(walk.kcal,(2.8-1)*3.5*70/200*minutes);
+  close(balance.exercise.plannedKcal,squat.kcal);
+  close(balance.adjustedKcal,balance.baseKcal+walk.kcal);
+  close(exerciseEnergy(entry('walking',{steps:10000}),preset('walking'),140,170).kcal,walk.kcal*4);
+  assert.equal(validateState(JSON.parse(JSON.stringify(state))).workouts.days[date][1].steps,5000);
+  assert.equal(copyWorkoutWeek(state.workouts.days,date,date)['2026-10-20'][1].steps,null);
+  state.workouts.days[date][1].completed=false;
+  close(dailyCalorieBalance(state,date).exercise.creditedKcal,0);
+  for (const steps of [0,1.5,100001,true])assert.throws(()=>entry('walking',{steps}),/Steps walked/);
+});

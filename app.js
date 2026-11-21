@@ -4,25 +4,25 @@ import {
   calculateGoals, portionNutrition, allowedUnits, unitLabel, newEntry,
   totals, remaining, progress, createInitialState, validateState, suggestions, closeIntakeDays, closedIntakeThrough,
   WORKOUT_GOALS, WORKOUT_EXPERIENCE, WORKOUT_EQUIPMENT, EXERCISE_PRESETS,
-  weekDates, validateWorkoutSettings, validateWorkoutEntry, workoutSuggestion,
+  weekDates, MAX_WALK_STEPS, plannedWorkoutEntry, validateWorkoutSettings, validateWorkoutEntry, workoutSuggestion,
   suggestWorkoutWeek, copyWorkoutWeek,
   EXERCISE_GROUPS,exerciseCatalog,scheduledExercise,validateExercise,validateSessionNote,
   WARMUP_TEXT,matchesStarterRoutine,starterWeek,workoutConfigKey,clearWorkoutSchedule,
-} from './core.js?v=19';
-import { createJournalSync } from './cloud-sync.js?v=18';
-import { sameJournal } from './journal-merge.js?v=19';
-import {validateCloudJournal} from './sync-journal.js?v=19';
+} from './core.js?v=24';
+import { createJournalSync } from './cloud-sync.js?v=24';
+import { sameJournal } from './journal-merge.js?v=24';
+import {validateCloudJournal} from './sync-journal.js?v=24';
 import { PALETTE_ROLES, TEXT_ROLES, DEFAULT_PREFERENCES, validatePreferences, colorRGB, colorHex, validateHex, contrastRatio } from './preferences.js?v=18';
-import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=18';
-import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=18';
-import {exerciseEnergy,exerciseActiveMinutes,exerciseWeightForDate,workoutDayEnergy,dailyCalorieBalance} from './exercise-energy.js?v=18';
-import {exerciseLibraryDashboard,exerciseLibraryResults,exerciseLibraryCount} from './exercise-library-view.js?v=18';
-import {weeklyIntakeDashboard} from './weekly-intake-view.js?v=18';
+import { applyAppearance, prepareProfilePhoto,prepareExerciseImage } from './appearance.js?v=24';
+import { workoutDashboard,prescription,guideHTML } from './workout-view.js?v=24';
+import {exerciseEnergy,exerciseActiveMinutes,exerciseWeightForDate,dailyCalorieBalance} from './exercise-energy.js?v=24';
+import {exerciseLibraryDashboard,exerciseLibraryResults,exerciseLibraryCount} from './exercise-library-view.js?v=24';
+import {weeklyIntakeDashboard} from './weekly-intake-view.js?v=24';
 
-import { activityOptions, activityGuide } from './activity-guide.js?v=18';
-import { renderGoalForecast, mountGoalForecast } from './goal-forecast-view.js?v=19';
+import { activityOptions, activityGuide } from './activity-guide.js?v=24';
+import { renderGoalForecast, mountGoalForecast } from './goal-forecast-view.js?v=24';
 import { quickCalculatorHTML, mountQuickCalculator } from './quick-calculator-view.js?v=21';
-import { exportJournalReportPDF } from './journal-report.js?v=23';
+import { exportJournalReportPDF } from './journal-report.js?v=24';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -230,7 +230,7 @@ function summaryContent(baseGoals, t, exerciseKcal=0, exerciseEstimate=exerciseK
     <div class="macro-list">${['protein','carbs','fat'].map(key => {
       const title = {protein:'Protein',carbs:'Carbohydrates',fat:'Fats'}[key];
       return `<div class="macro"><div class="macro-top"><span class="macro-title"><span class="dot ${key}"></span>${title}</span><span class="macro-values">${num(t[key],1)} g <span>/ ${num(g[key],1)} g</span></span></div><div class="progress-track" role="progressbar" aria-label="${title}" aria-valuemin="0" aria-valuemax="${g[key]}" aria-valuenow="${Math.min(t[key],g[key])}" aria-valuetext="${num(t[key],1)} grams consumed of ${num(g[key],1)} grams"><div class="progress-fill ${key}" style="width:${progress(t[key],g[key])}%"></div></div><div class="macro-bottom"><span>${key==='protein' ? 'For your muscle goal' : key==='carbs' ? 'Your energy balance' : 'A flexible daily target'}</span><span class="${rest[key] < -.05 ? 'exceeded' : ''}">${num(Math.abs(rest[key]),1)} g ${rest[key] < -.05 ? 'above target' : 'remaining'}</span></div></div>`;
-    }).join('')}${secondaryNutrients(baseGoals,t)}</div></div><section class="meal-time-log" aria-labelledby="meal-time-heading"><div class="meal-time-heading"><h2 id="meal-time-heading">Meal times</h2><span>Saved with this date</span></div><div class="meal-time-fields">${MEAL_TIME_FIELDS.map(({key,label})=>`<label class="meal-time-field" for="meal-time-${key}"><span>${label}</span><input id="meal-time-${key}" type="time" step="60" data-meal-time="${key}" value="${esc(mealTimes?.[key]||'')}" aria-label="${label} time"></label>`).join('')}</div></section><div class="activity-calorie-summary" aria-label="Daily exercise calorie adjustment"><div><span>Base budget</span><strong data-base-calories>${num(baseGoals.kcal)} kcal</strong></div><div><span>${state.profile.activity===1.2?'Completed exercise · estimate':'Extra exercise credit · included in activity'}</span><strong data-calorie-credit>+${num(exerciseKcal,1)} kcal</strong></div><div><span>Adjusted calorie budget</span><strong data-adjusted-calories>${num(g.kcal,1)} kcal</strong></div><p>${state.profile.activity===1.2?'Only checked workouts for this date add estimated calories.':'Your activity factor includes usual workouts, so completed exercise is not added again.'} ${state.profile.activity>1.2?`Completed workout burn estimate: <strong data-completed-exercise-estimate>${num(exerciseEstimate,1)} kcal</strong>. `:''}Macro and nutrient targets keep their base values. <button class="text-button" data-action="view-calorie-workouts">View this day’s workouts</button></p></div>`;
+    }).join('')}${secondaryNutrients(baseGoals,t)}</div></div><section class="meal-time-log" aria-labelledby="meal-time-heading"><div class="meal-time-heading"><h2 id="meal-time-heading">Meal times</h2><span>Saved with this date</span></div><div class="meal-time-fields">${MEAL_TIME_FIELDS.map(({key,label})=>`<label class="meal-time-field" for="meal-time-${key}"><span>${label}</span><input id="meal-time-${key}" type="time" step="60" data-meal-time="${key}" value="${esc(mealTimes?.[key]||'')}" aria-label="${label} time"></label>`).join('')}</div></section><div class="activity-calorie-summary" aria-label="Daily exercise calorie adjustment"><div><span>Base budget</span><strong data-base-calories>${num(baseGoals.kcal)} kcal</strong></div><div><span>${state.profile.activity===1.2?'Completed exercise credit':'Completed walk credit'}</span><strong data-calorie-credit>+${num(exerciseKcal,1)} kcal</strong></div><div><span>Adjusted calorie budget</span><strong data-adjusted-calories>${num(g.kcal,1)} kcal</strong></div><p>${state.profile.activity===1.2?'Completed workouts and walks for this date add estimated calories.':'Completed walks add extra calories. Your activity factor covers usual workouts.'} ${state.profile.activity>1.2?`Completed workout burn estimate: <strong data-completed-exercise-estimate>${num(exerciseEstimate,1)} kcal</strong>. `:''}Macro and nutrient targets keep their base values. <button class="text-button" data-action="view-calorie-workouts">View this day’s workouts</button></p></div>`;
 }
 
 function renderToday() {
@@ -245,7 +245,7 @@ function renderToday() {
     : `There are about ${num(r.kcal)} calories left in your selected budget. Carbs and fats are flexible targets.`;
   $('#main').innerHTML = heading('Your daily balance.',`A clear view of what you ate${isToday ? ' today' : ''}, ${esc(state.profile.name)}.`,dateControl()+addButton(),dateLabel.toUpperCase())
     + (!isToday ? `<div class="notice">${icon('history')}You’re viewing ${dateText(selectedDate,{year:'numeric'})}. <button class="text-button" data-action="today">Back to today</button></div>` : '')
-    + `<section class="card summary-card" aria-label="Daily calorie and macro progress"><div id="summary-live">${summaryContent(g,t,exerciseKcal,balance.exercise.estimatedKcal,day.mealTimes)}</div><div class="budget-row"><div class="budget-label"><strong>My base daily calorie budget</strong><span>${state.profile.activity===1.2?'Completed exercise is added separately':'Usual activity already includes workouts'}</span></div><div class="budget-slider"><span>1,200</span><input id="budget-slider" type="range" min="1200" max="${Math.max(2200,Math.ceil(g.kcal/100)*100)}" step="25" value="${g.kcal}" aria-label="Daily calorie budget"><span>${num(Math.max(2200,Math.ceil(g.kcal/100)*100))}</span></div><div class="budget-value"><input id="budget-number" type="number" min="1200" max="4000" step="25" value="${g.kcal}" aria-label="Daily calorie budget in kilocalories"><span>kcal</span></div></div></section>
+    + `<section class="card summary-card" aria-label="Daily calorie and macro progress"><div id="summary-live">${summaryContent(g,t,exerciseKcal,balance.exercise.estimatedKcal,day.mealTimes)}</div><div class="budget-row"><div class="budget-label"><strong>My base daily calorie budget</strong><span>${state.profile.activity===1.2?'Completed exercise is added separately':'Completed walks are added separately'}</span></div><div class="budget-slider"><span>1,200</span><input id="budget-slider" type="range" min="1200" max="${Math.max(2200,Math.ceil(g.kcal/100)*100)}" step="25" value="${g.kcal}" aria-label="Daily calorie budget"><span>${num(Math.max(2200,Math.ceil(g.kcal/100)*100))}</span></div><div class="budget-value"><input id="budget-number" type="number" min="1200" max="4000" step="25" value="${g.kcal}" aria-label="Daily calorie budget in kilocalories"><span>kcal</span></div></div></section>
     <div class="daily-grid"><section class="card"><div class="card-head"><div><h2>${isToday ? 'Today’s' : 'Your'} food journal</h2><p>Every portion, in one place.</p></div><span class="badge">${day.entries.length} ${day.entries.length===1 ? 'entry' : 'entries'}</span></div>
     ${day.entries.length ? `<div class="log-table-scroll" role="region" aria-label="Food journal entries" tabindex="0">${renderLog(day.entries)}</div>` : empty('A fresh page.','Add a usual food or save a new one to start this day.',addButton())}
     ${day.note ? `<p class="log-note">${esc(day.note)}</p>` : ''}
@@ -436,21 +436,25 @@ function showWorkoutEditor(exerciseId, entry = null) {
   const exercise = entry?scheduledExercise(entry,state.workouts):exerciseCatalog(state.workouts).find(e => e.id === exerciseId);
   if (!exercise) throw new Error('Choose an exercise from the preset list.');
   const value = entry || { ...workoutTarget(exerciseId), note:'' };
+  const walking=exercise.id==='walking';
   const seconds = exercise.unit === 'seconds',minutes=exercise.unit==='minutes';
   const definition=exerciseCatalog(state.workouts).find(e=>e.id===exerciseId);
   const compatibleDefaults=!entry||(definition?.unit===exercise.unit&&!!definition.unilateral===!!exercise.unilateral);
   openDialog(dialogHeading(entry ? 'Edit your exercise.' : 'Plan your exercise.',`${esc(exercise.name)} · ${esc(exercise.group)}`)
     + `<form id="workout-form" data-id="${esc(entry?.id || '')}" data-exercise-id="${exercise.id}" data-source-date="${workoutDate}" data-from-library="${route==='exercises'}"><div class="form-grid">
       ${field('Scheduled date','exercise-date',workoutDate,'date','required')}
+      ${walking?field('Steps walked · optional','exercise-steps',value.steps??'','number',`min="1" max="${MAX_WALK_STEPS}" step="1"`,'Adding steps marks the walk complete. Leave blank to use a time-based target.'):''}
+      <fieldset id="workout-targets" class="form-grid" aria-label="Exercise targets">
       ${field('Sets','exercise-sets',value.sets,'number','required min="1" max="10" step="1"')}
       ${field('Maximum sets · optional','exercise-sets-max',value.setsMax??value.sets,'number','min="1" max="10" step="1"','Keep the same number for a fixed target.')}
       ${field(minutes?'Minutes per set':seconds ? 'Seconds per set' : `Reps per set${exercise.unilateral ? ' · per side' : ''}`,'exercise-reps',value.reps,'number',`required min="1" max="${seconds?300:minutes?240:100}" step="1"`)}
       ${field('Maximum target · optional','exercise-reps-max',value.repsMax??value.reps,'number',`min="1" max="${seconds?300:minutes?240:100}" step="1"`,'For example, 8 and 12 makes an 8–12 range.')}
       ${field('Rest between sets · seconds','exercise-rest',value.restSeconds??60,'number','required min="0" max="600" step="1"')}
       ${field('Weight · kg (optional)','exercise-load',value.load ?? '', 'number','min="0" max="500" step="0.1"','Per dumbbell for dumbbell exercises; 0 for bodyweight.')}
-      <div class="field full"><label for="exercise-note">Notes · optional</label><textarea id="exercise-note" name="exercise-note" maxlength="400" placeholder="For example: use the 6 kg dumbbells">${esc(value.note)}</textarea></div></div>
-      <div class="dialog-food-details">${esc(exercise.cue)}<br>Choose a weight or variation that leaves about 2–3 reps in reserve. ${entry ? 'Moving this exercise to another date resets its checkbox.' : 'You can change every suggested target before saving.'}</div>
-      ${compatibleDefaults?`<button class="text-button" type="button" data-action="workout-use-suggestion">Use suggested sets & ${minutes?'minutes':seconds ? 'seconds' : 'reps'}</button>`:'<p class="subtle-note">This workout keeps its original target unit and side count. Set its targets above; the library now uses different defaults.</p>'}
+      </fieldset>
+      <div class="field full"><label for="exercise-note">Notes · optional</label><textarea id="exercise-note" name="exercise-note" maxlength="400" placeholder="${walking?'For example: walked around the park':'For example: use the 6 kg dumbbells'}">${esc(value.note)}</textarea></div></div>
+      <div class="dialog-food-details">${esc(exercise.cue)}<br>${walking?'':'Choose a weight or variation that leaves about 2–3 reps in reserve. '}${entry ? 'Moving this exercise to another date resets its checkbox.' : 'You can change every suggested target before saving.'}</div>
+      ${compatibleDefaults?`<button id="workout-suggestion" class="text-button" type="button" data-action="workout-use-suggestion">Use suggested sets & ${minutes?'minutes':seconds ? 'seconds' : 'reps'}</button>`:'<p class="subtle-note">This workout keeps its original target unit and side count. Set its targets above; the library now uses different defaults.</p>'}
       <div id="workout-energy-preview" class="exercise-energy-preview" role="status" aria-live="polite"></div>
       <div class="form-error" id="workout-error" role="alert"></div><div class="dialog-footer"><button class="btn secondary" type="button" data-action="close-dialog">Cancel</button><button class="btn primary" type="submit">${icon('check')} ${entry ? 'Save changes' : 'Add exercise'}</button></div></form>`);
   $('#workout-form').dataset.lastSets=String(value.sets);$('#workout-form').dataset.lastReps=String(value.reps);
@@ -462,11 +466,20 @@ function updateWorkoutEnergyPreview() {
   try {
     const existing=workoutEntries(form.dataset.sourceDate).find(entry=>entry.id===form.dataset.id);
     const exercise=existing?scheduledExercise(existing,state.workouts):exerciseCatalog(state.workouts).find(e=>e.id===form.dataset.exerciseId);
-    const estimate=exerciseEnergy({sets:Number($('#exercise-sets').value),setsMax:Number($('#exercise-sets-max').value||$('#exercise-sets').value),
+    const steps=$('#exercise-steps')?.value;
+    $('#workout-targets').hidden=!!steps;
+    $('#workout-targets').disabled=!!steps;
+    const suggestion=$('#workout-suggestion');
+    if(suggestion)suggestion.hidden=!!steps;
+    const estimate=exerciseEnergy({steps,sets:Number($('#exercise-sets').value),setsMax:Number($('#exercise-sets-max').value||$('#exercise-sets').value),
       reps:Number($('#exercise-reps').value),repsMax:Number($('#exercise-reps-max').value||$('#exercise-reps').value)},
-      exercise,exerciseWeightForDate(state,$('#exercise-date').value));
-    $('#workout-energy-preview').innerHTML=`<strong>Estimated extra burn: ~${num(estimate.kcal,1)} kcal</strong><span>${num(estimate.activeMinutes,1)} active min · ${estimate.custom?'your calorie estimate':`${num(estimate.met,1)} MET`} · ${num(estimate.weightKg,1)} kg body weight${estimate.usesRange?' · midpoint of your ranges':''}. ${exercise.unit==='reps'?`${estimate.secondsPerRep} sec per rep. `:''}${exercise.unilateral?'Both sides included. ':''}${state.profile.activity>1.2?'Your activity factor includes workouts; this estimate adds no extra budget credit.':existing?.completed&&$('#exercise-date').value===form.dataset.sourceDate?'Saving updates this day’s calorie credit.':'Added to remaining calories when you check the exercise.'}</span>`;
-  }catch{$('#workout-energy-preview').textContent='Enter valid sets, targets and a date to preview estimated calories.';}
+      exercise,exerciseWeightForDate(state,$('#exercise-date').value),state.profile.height);
+    if(estimate.steps) {
+      $('#workout-energy-preview').innerHTML=`<strong>Estimated extra burn: ~${num(estimate.kcal,1)} kcal</strong><span>~${num(estimate.activeMinutes,1)} min at 4 km/h, using your profile height and ${num(estimate.weightKg,1)} kg body weight for this date. Completed walks add to your calorie budget at every activity level.</span>`;
+      return;
+    }
+    $('#workout-energy-preview').innerHTML=`<strong>Estimated extra burn: ~${num(estimate.kcal,1)} kcal</strong><span>${num(estimate.activeMinutes,1)} active min · ${estimate.custom?'your calorie estimate':`${num(estimate.met,1)} MET`} · ${num(estimate.weightKg,1)} kg body weight${estimate.usesRange?' · midpoint of your ranges':''}. ${exercise.unit==='reps'?`${estimate.secondsPerRep} sec per rep. `:''}${exercise.unilateral?'Both sides included. ':''}${state.profile.activity>1.2&&exercise.id!=='walking'?'Your activity factor includes workouts; this estimate adds no extra budget credit.':existing?.completed&&$('#exercise-date').value===form.dataset.sourceDate?'Saving updates this day’s calorie credit.':'Added to remaining calories when you check the exercise.'}</span>`;
+  }catch{$('#workout-energy-preview').textContent='Enter a valid date and either whole steps or valid sets and targets to preview estimated calories.';}
 }
 
 function showExerciseLibrary() {
@@ -779,7 +792,7 @@ document.addEventListener('click',event=>{
     }
     if(action==='save-workout-routine') {
       const dates=weekDates(workoutDate);
-      state.workouts.template={config:workoutConfigKey(state.workouts.settings),days:dates.map(date=>workoutEntries(date).map(entry=>({...entry,completed:false}))),notes:dates.map(date=>validateSessionNote(state.workouts.notes[date]))};
+      state.workouts.template={config:workoutConfigKey(state.workouts.settings),days:dates.map(date=>workoutEntries(date).map(plannedWorkoutEntry)),notes:dates.map(date=>validateSessionNote(state.workouts.notes[date]))};
       state.workouts.settings.autoRepeat=true;save();renderWorkouts();toast('This week is saved as your repeating routine.');return;
     }
     if(action==='clear-workouts'||action==='confirm-clear-workouts') {
@@ -1102,10 +1115,15 @@ document.addEventListener('submit',async event=>{
       const data=Object.fromEntries(new FormData(form)),date=data['exercise-date'],source=form.dataset.sourceDate;
       if(!isDateKey(date))throw new Error('Choose a valid workout date.');
       const existing=workoutEntries(source).find(e=>e.id===form.dataset.id);
-      const entry=validateWorkoutEntry({id:existing?.id||crypto.randomUUID(),exerciseId:form.dataset.exerciseId,
-        sets:data['exercise-sets'],reps:data['exercise-reps'],load:data['exercise-load'],note:data['exercise-note'],
-        setsMax:data['exercise-sets-max']||data['exercise-sets'],repsMax:data['exercise-reps-max']||data['exercise-reps'],restSeconds:data['exercise-rest'],exercise:existing?.exercise,
-        completed:source===date&&(existing?.completed??false)},exerciseCatalog(state.workouts));
+      const steps=data['exercise-steps'];
+      const loggedWalk=!!steps&&!existing?.steps;
+      const targets=steps?(existing||workoutTarget(form.dataset.exerciseId)):{
+        sets:data['exercise-sets'],reps:data['exercise-reps'],load:data['exercise-load'],restSeconds:data['exercise-rest'],
+        setsMax:data['exercise-sets-max']||data['exercise-sets'],repsMax:data['exercise-reps-max']||data['exercise-reps']
+      };
+      const entry=validateWorkoutEntry({...targets,steps,id:existing?.id||crypto.randomUUID(),exerciseId:form.dataset.exerciseId,
+        note:data['exercise-note'],exercise:existing?.exercise,
+        completed:(!existing||source===date)&&(loggedWalk||!!existing?.completed)},exerciseCatalog(state.workouts));
       if(workoutEntries(date).length>=50&&(!existing||date!==source))throw new Error('One day can contain up to 50 exercises.');
       if(existing&&date===source)state.workouts.days[date]=workoutEntries(date).map(e=>e.id===existing.id?entry:e);
       else {
@@ -1114,7 +1132,7 @@ document.addEventListener('submit',async event=>{
       }
       workoutDate=date;
       const fromLibrary=form.dataset.fromLibrary==='true';
-      save();closeDialog();if(fromLibrary&&route!=='workouts')location.hash='workouts';else render();toast(existing?'Exercise updated.':'Exercise added to your plan.');return;
+      save();closeDialog();if(fromLibrary&&route!=='workouts')location.hash='workouts';else render();toast(existing?'Exercise updated.':entry.steps?'Walk logged.':'Exercise added to your plan.');return;
     }
     if(form.id==='portion-form') {
       const data=Object.fromEntries(new FormData(form));
